@@ -1,0 +1,19 @@
+# Ignore compile file
+/build/
+/cmake-build-*/
+
+# Ignore user file
+*.pro.user
+*.pro.user.*
+CMakeLists.txt.user
+
+# Ignore IDE file
+.idea/
+/.vscode/
+
+# Ignore log file
+*.log
+
+# Ignore Cache
+CMakeCache.txt
+CMakeFiles/
