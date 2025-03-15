@@ -4,6 +4,7 @@
 #include <map>
 #include <vector>
 Lexer::Lexer() {}
+
 std::string serializeColumns(const std::vector<std::map<std::string, std::string>>& columns) {
     std::string result;
     for (const auto& column : columns) {
@@ -29,7 +30,7 @@ std::map<std::string, std::string> parseCreate(const std::string& sql) {
     result["type"] = "CREATE";
     result["status"] = "false";
 
-    std::regex createPattern(R"(CREATE\s+(DATABASE|TABLE)\s+(\w+)\s*\(([\s\S]+?)\)\s*;?)", std::regex_constants::icase);
+    std::regex createPattern(R"(CREATE\s+(DATABASE|TABLE)\s+(\w+)\s*\(([\s\S\)\(]+)\)\s*;?)", std::regex_constants::icase);
     std::smatch match;
 
     if (std::regex_search(sql, match, createPattern)) {
@@ -66,6 +67,21 @@ std::map<std::string, std::string> parseCreate(const std::string& sql) {
     return result;
 }
 
+std::map<std::string,std::string> parseDrop(const std::string& sql){
+    std::map<std::string,std::string> result;
+    result["type"] = "DROP";
+    result["status"] = "false";
+    result["mode"] = "restrict"
+    std::regex pattern(R"(DROP\s(DATABASE|TABLE)\s(\w+)\s*(RESTRICT|CASCADE)*;)",std::regex_constants::icase);
+    std::smatch match;
+    if(std::regex_search(sql,match,pattern)){
+        result["status"]="true";
+        result["object_type"]=match[1];
+        result["object_name"]=match[2];
+    }
+    return result;
+}
+
 /**
  * @brief:Parsing INSERT SQL and return relative info.
  * @param: SQL.
@@ -79,7 +95,7 @@ std::map<std::string, std::string> parseInsert(const std::string& sql) {
     std::map<std::string, std::string> result;
     result["type"] = "INSERT";
     result["status"] = "false";
-    std::regex pattern(R"(INSERT\s+INTO\s+(\w+)\s*\(([\w\s,]+)\)\s*VALUES\s*\(([\w\s,]+)\)\s*;?)", std::regex_constants::icase);
+    std::regex pattern(R"()", std::regex_constants::icase);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = "true";
@@ -89,14 +105,37 @@ std::map<std::string, std::string> parseInsert(const std::string& sql) {
     }
     return result;
 }
+/**
+ * @brief:Parsing USE SQL and return relative info.
+ * @param: SQL.
+ * @return:A map named "result" which has four index: 
+ *         - "status":whether grammer is correct,
+ *         - "type":USE(fixed structure),
+ *         - "name":the name of database which will be used
+ */
+std::map<std::string,std::string> parseUse(const std::string& sql){
+    std::map<std::string, std::string> result;
+    result["type"] = "USE";
+    result["status"] = "false";
+    
+    std::regex pattern(R"(USE\s+(\w)+;)",std::regex_constants::icase);
+    std::smatch match;
 
-// 解析 SELECT 语句
+    if(std::regex_search(sql,match,pattern)){
+        result["status"]="true";
+        result["name"] = match[1];
+    }
+    return result;
+}
+/**
+ * @brief:Parsing SELECT SQL and return relative info.
+ */
 std::map<std::string, std::string> parseSelect(const std::string& sql) {
     std::map<std::string, std::string> result;
     result["type"] = "SELECT";
     result["status"] = "false";
 
-    std::regex pattern(R"(SELECT\s+([\w\s,*]+)\s+FROM\s+(\w+)(?:\s+WHERE\s+([\w\s=<>']+))?\s*;?)", std::regex_constants::icase);
+    std::regex pattern(R"()", std::regex_constants::icase);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
@@ -109,11 +148,16 @@ std::map<std::string, std::string> parseSelect(const std::string& sql) {
     return result;
 }
 
-// 根据 SQL 类型调用相应的解析函数
+/**
+ * @brief:decide which parsing function should be used
+ * @param:SQL
+ * @return:
+ */
 std::map<std::string, std::string> parseSQL(const std::string& sql) {
     std::regex createPattern(R"(^CREATE\s)", std::regex_constants::icase);
     std::regex insertPattern(R"(^INSERT\s)", std::regex_constants::icase);
     std::regex selectPattern(R"(^SELECT\s)", std::regex_constants::icase);
+    std::regex usePattern(R"(^USE\s)",std::regex_constants::icase);
 
     if (std::regex_search(sql, createPattern)) {
         return parseCreate(sql);
@@ -121,6 +165,8 @@ std::map<std::string, std::string> parseSQL(const std::string& sql) {
         return parseInsert(sql);
     } else if (std::regex_search(sql, selectPattern)) {
         return parseSelect(sql);
+    }else if (std::regex_search(sql,usePattern)){
+        return parseUse(sql);
     }
 
     // 默认返回未知类型
