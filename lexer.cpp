@@ -30,7 +30,7 @@ std::map<std::string, std::string> parseCreate(const std::string& sql) {
     result["type"] = "CREATE";
     result["status"] = "false";
 
-    std::regex createPattern(R"(CREATE\s+(DATABASE|TABLE)\s+(\w+)\s*\(([\s\S\)\(]+)\)\s*;?)", std::regex_constants::icase);
+    std::regex createPattern(R"(CREATE\s+(DATABASE|TABLE)\s+(\w+)\s*(?:\(([\s\S]*?)\))?\s*;)", std::regex_constants::icase);
     std::smatch match;
 
     if (std::regex_search(sql, match, createPattern)) {
@@ -67,11 +67,20 @@ std::map<std::string, std::string> parseCreate(const std::string& sql) {
     return result;
 }
 
+/**
+ * @brief: Parsing DROP SQL and return relative info.
+ * @param: SQL.
+ * @return:A map named "result" which has four index: 
+ *         - "status":whether grammer is correct,
+ *         - "type":DROP(fixed structure),
+ *         - "object_type": DATABASE/TABLE,
+ *         - "object_name": The name of database or table;
+ */
 std::map<std::string,std::string> parseDrop(const std::string& sql){
     std::map<std::string,std::string> result;
     result["type"] = "DROP";
     result["status"] = "false";
-    result["mode"] = "restrict"
+    result["mode"] = "restrict";
     std::regex pattern(R"(DROP\s(DATABASE|TABLE)\s(\w+)\s*(RESTRICT|CASCADE)*;)",std::regex_constants::icase);
     std::smatch match;
     if(std::regex_search(sql,match,pattern)){
