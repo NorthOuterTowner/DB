@@ -1,4 +1,5 @@
 #include "lexer.h"
+#include "utils.h"
 #include <iostream>
 #include <regex>
 #include <map>
@@ -147,7 +148,6 @@ std::map<std::string, std::string> parseSelect(const std::string& sql) {
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = "true";
 
-        // 解析列，按逗号拆分
         std::regex colRegex(R"(\w+(?:\s+AS\s+\w+)?)", ICASE);
         std::string matchStr = match[1].str();
         auto colBegin = std::sregex_iterator(matchStr.begin(), matchStr.end(), colRegex);
@@ -225,29 +225,28 @@ std::map<std::string, std::string> parseRevoke(const std::string& sql) {
 }
 
 std::map<std::string, std::string> parseAlter(const std::string& sql) {
-    std::map<std::string, std::string> result = { {"type", "ALTER"}, {"status", "false"} };
-    std::regex pattern(R"(ALTER\s+TABLE\s+(\w+)\s+(ADD|MODIFY|DROP)\s+(\w+))", ICASE);
+    std::map<std::string, std::string> result = { {"type", "ALTER"}, {"status", "false"} } ;
+    std::regex pattern(R"(ALTER\s+TABLE\s+(\w+)\s+(ADD|MODIFY|DROP)\s+(.*))", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = "true";
         result["table"] = match[1];
         result["action"] = match[2];
-        result["column"] = match[3];
+        std::string columnsStr = match[3];
+
+        std::vector<std::map<std::string, std::string>> columns;
+        std::regex columnPattern(R"((\w+)\s+(\w+)\s*([^,]*))");
+        auto columnBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), columnPattern);
+        auto columnEnd = std::sregex_iterator();
+        for (std::sregex_iterator it = columnBegin; it != columnEnd; ++it) {
+            std::map<std::string, std::string> column;
+            column["name"] = (*it)[1];
+            column["type"] = (*it)[2];
+            column["constraints"] = (*it)[3];
+            columns.push_back(column);
+        }
+        result["columns"] = serializeColumns(columns);
     }
-    std::vector<std::map<std::string, std::string>> columns;
-    std::regex columnPattern(R"(\s*(\w+)\s+(\w+)\s*([\s\S]*?)\s*(?:,|$))");
-    std::smatch columnMatch;
-    std::string columnsStr = match[3];
-    auto columnBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), columnPattern);
-    auto columnEnd = std::sregex_iterator();
-    for (std::sregex_iterator it = columnBegin; it != columnEnd; ++it) {
-        std::map<std::string, std::string> column;
-        column["name"] = (*it)[1];
-        column["type"] = (*it)[2];
-        column["constraints"] = (*it)[3];
-        columns.push_back(column);
-    }
-    std::cout << serializeColumns(columns) << std::endl;
     return result;
 }
 
@@ -326,8 +325,10 @@ std::map<std::string, std::string> parseSQL(const std::string& sql) {
 }
 
 void Lexer::handleRawSQL(QString rawSql){
-    std::string sql=rawSql.toStdString();
-    auto result1 = parseSQL(sql);
-    std::cout << "Type: " << result1["type"] << ", Status: " << result1["status"] << std::endl;
+    std::vector<std::string> sqls=utils::split(rawSql.toStdString(),";");
+    for(std::string sql:sqls){
+        std::map<std::string,std::string> result = parseSQL(sql);
+        std::cout << "Type: " << result["type"] << ", Status: " << result["status"] << std::endl;
+    }
 }
 

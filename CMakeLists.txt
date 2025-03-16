@@ -31,6 +31,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
 
         loginwindow.cpp loginwindow.h loginwindow.ui
         resource.qrc
+        utils.h utils.cpp
 
 
 
