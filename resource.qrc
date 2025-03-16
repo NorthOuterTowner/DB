@@ -1,0 +1,15 @@
+<RCC>
+    <qresource prefix="/">
+        <file>res/image/11.jpeg</file>
+        <file>res/image/code.png</file>
+        <file>res/image/db.png</file>
+        <file>res/image/table.png</file>
+        <file>res/image/user.png</file>
+        <file>res/image/yunx.png</file>
+        <file>res/image/new_db.png</file>
+        <file>res/image/new_table.png</file>
+        <file>res/image/clear.png</file>
+        <file>res/image/exit.png</file>
+        <file>res/image/save.png</file>
+    </qresource>
+</RCC>
