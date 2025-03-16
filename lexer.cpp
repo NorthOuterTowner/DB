@@ -110,17 +110,15 @@ std::map<std::string, std::string> parseInsert(const std::string& sql) {
     result["type"] = "INSERT";
     result["status"] = "false";
 
-    // 正则表达式匹配 INSERT INTO 语句
     std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([\w\s,]+)\)\s*VALUES\s*(.+);)", std::regex_constants::icase);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = "true";
-        result["table"] = match[1];  // 表名
-        result["columns"] = match[2];  // 列名
-        std::string valuesStr = match[3];  // 多组值
+        result["table"] = match[1];
+        result["columns"] = match[2];
+        std::string valuesStr = match[3];
 
-        // 提取列名
         std::regex colPattern(R"(\w+)");
         auto colBegin = std::sregex_iterator(result["columns"].begin(), result["columns"].end(), colPattern);
         auto colEnd = std::sregex_iterator();
@@ -130,37 +128,30 @@ std::map<std::string, std::string> parseInsert(const std::string& sql) {
             columns.push_back(it->str());
         }
 
-        // 提取多组值
-        std::regex groupPattern(R"(\(([^()]+)\))");  // 匹配每组值
+        std::regex groupPattern(R"(\(([^()]+)\))"); 
         auto groupBegin = std::sregex_iterator(valuesStr.begin(), valuesStr.end(), groupPattern);
         auto groupEnd = std::sregex_iterator();
 
         for (std::sregex_iterator it = groupBegin; it != groupEnd; ++it) {
-            std::string groupValues = it->str(1);  // 获取每组值的内容
+            std::string groupValues = it->str(1);
 
-            // 提取每组值中的具体值
-            std::regex valPattern(R"((?:'[^']*'|[^,]+))");  // 匹配值，支持字符串和普通值
+            std::regex valPattern(R"((?:'[^']*'|[^,]+))"); 
             auto valBegin = std::sregex_iterator(groupValues.begin(), groupValues.end(), valPattern);
             auto valEnd = std::sregex_iterator();
             std::vector<std::string> values;
 
             for (std::sregex_iterator valIt = valBegin; valIt != valEnd; ++valIt) {
                 std::string val = valIt->str();
-
-                // 去掉值前后的空格
                 val.erase(0, val.find_first_not_of(' '));
                 val.erase(val.find_last_not_of(' ') + 1);
 
                 values.push_back(val);
             }
 
-            // 检查列和值的数量是否一致
             if (columns.size() != values.size()) {
                 std::cerr << "Error: Number of columns and values do not match in group: " << groupValues << std::endl;
                 continue;
             }
-
-            // 输出每组值的列名和值
             std::cout << "Group Values:" << std::endl;
             for (size_t i = 0; i < columns.size(); ++i) {
                 std::cout << "  Column: " << columns[i] << ", Value: " << values[i] << std::endl;
