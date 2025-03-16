@@ -26,9 +26,12 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(DB
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
-        res/code.png res/user.png
+
         loginwindow.cpp loginwindow.h loginwindow.ui
-        lexer.h lexer.cpp
+        resource.qrc
+
+
+
 
     )
 # Define target properties for Android with Qt 6 as:
