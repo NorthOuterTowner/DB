@@ -7,12 +7,7 @@
 #define ICASE std::regex_constants::icase
 
 Lexer::Lexer() {}
-/**
- * @brief: SerializeColumns when needed. But In fact,
- * most of times, it won't be used because deliver columns 
- * to function which deal with discrete logic as paramters 
- * is the best way to use it. 
- */
+
 std::string serializeColumns(const std::vector<std::map<std::string, std::string>>& columns) {
     std::string result;
     for (const auto& column : columns) {
@@ -24,19 +19,9 @@ std::string serializeColumns(const std::vector<std::map<std::string, std::string
     }
     return result;
 }
-/**
- * @brief: Parsing CREATE SQL and return relative info.
- * @param: SQL.
- * @return:A map named "result" which has four index: 
- *         - "status":whether grammer is correct,
- *         - "type":CREATE(fixed structure),
- *         - "object_type": DATABASE/TABLE,
- *         - "object_name": The name of database or table;
- */
+
 std::map<std::string, std::string> parseCreate(const std::string& sql) {
-    std::map<std::string, std::string> result;
-    result["type"] = "CREATE";
-    result["status"] = "false";
+    std::map<std::string, std::string> result = { {"type", "CREATE"}, {"status", "false"} };
 
     std::regex createPattern(R"(CREATE\s+(DATABASE|TABLE)\s+(\w+)\s*(?:\(([\s\S]*?)\))?\s*;)", ICASE);
     std::smatch match;
@@ -72,15 +57,6 @@ std::map<std::string, std::string> parseCreate(const std::string& sql) {
     return result;
 }
 
-/**
- * @brief: Parsing DROP SQL and return relative info.
- * @param: SQL.
- * @return:A map named "result" which has four index: 
- *         - "status":whether grammer is correct,
- *         - "type":DROP(fixed structure),
- *         - "object_type": DATABASE/TABLE,
- *         - "object_name": The name of database or table;
- */
 std::map<std::string,std::string> parseDrop(const std::string& sql){
     std::map<std::string,std::string> result;
     result["type"] = "DROP";
@@ -96,19 +72,8 @@ std::map<std::string,std::string> parseDrop(const std::string& sql){
     return result;
 }
 
-/**
- * @brief:Parsing INSERT SQL and return relative info.
- * @param: SQL.
- * @return:A map named "result" which has four index: 
- *         - "status":whether grammer is correct,
- *         - "type":INSERT(fixed structure),
- *         - "columns": column name,
- *         - "values": insert value;
- */
 std::map<std::string, std::string> parseInsert(const std::string& sql) {
-    std::map<std::string, std::string> result;
-    result["type"] = "INSERT";
-    result["status"] = "false";
+    std::map<std::string, std::string> result = { {"type", "INSERT"}, {"status", "false"} };
 
     std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([\w\s,]+)\)\s*VALUES\s*(.+);)", std::regex_constants::icase);
     std::smatch match;
@@ -161,19 +126,9 @@ std::map<std::string, std::string> parseInsert(const std::string& sql) {
 
     return result;
 }
-/**
- * @brief:Parsing USE SQL and return relative info.
- * @param: SQL.
- * @return:A map named "result" which has four index: 
- *         - "status":whether grammer is correct,
- *         - "type":USE(fixed structure),
- *         - "name":the name of database which will be used
- */
+
 std::map<std::string,std::string> parseUse(const std::string& sql){
-    std::map<std::string, std::string> result;
-    result["type"] = "USE";
-    result["status"] = "false";
-    
+    std::map<std::string, std::string> result = { {"type", "USE"}, {"status", "false"} };
     std::regex pattern(R"(USE\s+(\w)+;)",ICASE);
     std::smatch match;
 
@@ -183,20 +138,7 @@ std::map<std::string,std::string> parseUse(const std::string& sql){
     }
     return result;
 }
-/**
- * @brief:Parsing SELECT SQL and return relative info.
- * @param: SQL.
- * @return:A map named "result" which has four index:
- *         - "status":whether grammer is correct,
- *         - "type":SELECT(fixed structure),
- *         - "columns": column name,
- *         - "table": table name,
- *         - "where": where condition,
- *         - "group_by": group by condition,
- *         - "having": having condition,
- *         - "order_by": order by condition,
- *         - "limit": limit condition;
- */
+
 std::map<std::string, std::string> parseSelect(const std::string& sql) {
     std::map<std::string, std::string> result = { {"type", "SELECT"}, {"status", "false"} };
     std::regex pattern(R"(SELECT\s+(.*?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.*?))?(?:\s+GROUP\s+BY\s+(.*?))?(?:\s+HAVING\s+(.*?))?(?:\s+ORDER\s+BY\s+(.*?))?(?:\s+LIMIT\s+(.*?))?)", ICASE);
@@ -227,16 +169,7 @@ std::map<std::string, std::string> parseSelect(const std::string& sql) {
     std::cout << result["status"] << std::endl;
     return result;
 }
-/**
- * @brief:Parsing GRANT SQL and return relative info.
- * @param: SQL.
- * @return:A map named "result" which has four index:
- *        - "status":whether grammer is correct,
- *        - "type":GRANT(fixed structure),
- *        - "rights": rights granted,
- *        - "object": the rights of which table or database,
- *        - "user": user name,
- * */
+
 std::map<std::string, std::string> parseGrant(const std::string& sql) {
     std::map<std::string, std::string> result = { {"type", "GRANT"}, {"status", "false"} };
     std::regex pattern(R"(GRANT\s+([\w,\s]+)\s+ON\s+(\w+)\s+TO\s+(\w+))", ICASE);
@@ -246,7 +179,7 @@ std::map<std::string, std::string> parseGrant(const std::string& sql) {
         result["rights"] = match[1];
         result["object"] = match[2];
         result["user"] = match[3];
-        // 拆分多个权限
+
         std::vector<std::string> rightsList;
         std::regex rightsRegex(R"(\w+)");
         std::string matchStr = match[1].str();
@@ -264,16 +197,6 @@ std::map<std::string, std::string> parseGrant(const std::string& sql) {
     return result;
 }
 
-/**
- * @brief:Parsing REVOKE SQL and return relative info.
- * @param: SQL.
- * @return:A map named "result" which has four index:
- *        - "status":whether grammer is correct,
- *        - "type":REVOKE(fixed structure),
- *        - "rights": rights revoked,
- *        - "object": the rights of which table or database,
- *        - "user": user name,
- * */
 std::map<std::string, std::string> parseRevoke(const std::string& sql) {
     std::map<std::string, std::string> result = { {"type", "REVOKE"}, {"status", "false"} };
     std::regex pattern(R"(REVOKE\s+([\w,\s]+)\s+ON\s+(\w+)\s+FROM\s+(\w+))", ICASE);
@@ -300,6 +223,7 @@ std::map<std::string, std::string> parseRevoke(const std::string& sql) {
     }
     return result;
 }
+
 std::map<std::string, std::string> parseAlter(const std::string& sql) {
     std::map<std::string, std::string> result = { {"type", "ALTER"}, {"status", "false"} };
     std::regex pattern(R"(ALTER\s+TABLE\s+(\w+)\s+(ADD|MODIFY|DROP)\s+(\w+))", ICASE);
@@ -310,10 +234,23 @@ std::map<std::string, std::string> parseAlter(const std::string& sql) {
         result["action"] = match[2];
         result["column"] = match[3];
     }
+    std::vector<std::map<std::string, std::string>> columns;
+    std::regex columnPattern(R"(\s*(\w+)\s+(\w+)\s*([\s\S]*?)\s*(?:,|$))");
+    std::smatch columnMatch;
+    std::string columnsStr = match[3];
+    auto columnBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), columnPattern);
+    auto columnEnd = std::sregex_iterator();
+    for (std::sregex_iterator it = columnBegin; it != columnEnd; ++it) {
+        std::map<std::string, std::string> column;
+        column["name"] = (*it)[1];
+        column["type"] = (*it)[2];
+        column["constraints"] = (*it)[3];
+        columns.push_back(column);
+    }
+    std::cout << serializeColumns(columns) << std::endl;
     return result;
 }
 
-// 完善的SHOW解析，支持SHOW TABLES/DATABASES等
 std::map<std::string, std::string> parseShow(const std::string& sql) {
     std::map<std::string, std::string> result = { {"type", "SHOW"}, {"status", "false"} };
     std::regex pattern(R"(SHOW\s+(TABLES|DATABASES)(?:\s+FROM\s+(\w+))?)", ICASE);
@@ -326,7 +263,6 @@ std::map<std::string, std::string> parseShow(const std::string& sql) {
     return result;
 }
 
-// 完善的UPDATE解析，支持WHERE条件
 std::map<std::string, std::string> parseUpdate(const std::string& sql) {
     std::map<std::string, std::string> result = { {"type", "UPDATE"}, {"status", "false"} };
     std::regex pattern(R"(UPDATE\s+(\w+)\s+SET\s+(\w+)\s*=\s*(\w+)(?:\s+WHERE\s+(.+))?)", ICASE);
@@ -341,7 +277,6 @@ std::map<std::string, std::string> parseUpdate(const std::string& sql) {
     return result;
 }
 
-// 完善的DELETE解析，支持WHERE条件
 std::map<std::string, std::string> parseDelete(const std::string& sql) {
     std::map<std::string, std::string> result = { {"type", "DELETE"}, {"status", "false"} };
     std::regex pattern(R"(DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?)", ICASE);
@@ -354,15 +289,6 @@ std::map<std::string, std::string> parseDelete(const std::string& sql) {
     return result;
 }
 
-/**
- * @brief:Parsing DESCRIBE SQL and return relative info.
- * @param: SQL.
- * @return:A map named "result" which has four index:
- *       - "status":whether grammer is correct,
- *       - "type":DESCRIBE(fixed structure),
- *       - "table": table name,
- *       - "column": column name;
- */
 std::map<std::string, std::string> parseDescribe(const std::string& sql) {
     std::map<std::string, std::string> result = { {"type", "DESCRIBE"}, {"status", "false"} };
     std::regex pattern(R"(DESCRIBE\s+(\w+)(?:\s+(\w+))?)", ICASE);
@@ -375,11 +301,6 @@ std::map<std::string, std::string> parseDescribe(const std::string& sql) {
     return result;
 }
 
-/**
- * @brief:decide which parsing function should be used
- * @param:SQL
- * @return:the result of parsing function
- */
 using ParseFunc = std::map<std::string, std::string>(*)(const std::string&);
 std::map<std::string, std::string> parseSQL(const std::string& sql) {
     std::vector<std::pair<std::regex, ParseFunc>> patterns = {
@@ -403,10 +324,7 @@ std::map<std::string, std::string> parseSQL(const std::string& sql) {
     }
     return { {"type", "UNKNOWN"}, {"status", "false"} };
 }
-/**
- * @brief:handleRawSQL is the main function of Lexer class.
- * It will call parseSQL to parse all the SQL from MainWindow.
- */
+
 void Lexer::handleRawSQL(QString rawSql){
     std::string sql=rawSql.toStdString();
     auto result1 = parseSQL(sql);
