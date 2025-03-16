@@ -1,5 +1,5 @@
 #include "loginwindow.h"
-
+#include "lexer.h"
 #include <QApplication>
 #include <QLocale>
 #include <QTranslator>
