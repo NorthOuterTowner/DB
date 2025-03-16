@@ -100,10 +100,10 @@
    <widget class="QLabel" name="user_photo">
     <property name="geometry">
      <rect>
-      <x>220</x>
-      <y>250</y>
-      <width>40</width>
-      <height>12</height>
+      <x>230</x>
+      <y>230</y>
+      <width>41</width>
+      <height>41</height>
      </rect>
     </property>
     <property name="text">
@@ -164,10 +164,10 @@
    <widget class="QLabel" name="code_photo">
     <property name="geometry">
      <rect>
-      <x>220</x>
-      <y>300</y>
-      <width>40</width>
-      <height>12</height>
+      <x>230</x>
+      <y>280</y>
+      <width>41</width>
+      <height>41</height>
      </rect>
     </property>
     <property name="text">

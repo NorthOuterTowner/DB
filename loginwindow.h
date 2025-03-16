@@ -24,3 +24,5 @@ private:
     Ui::loginwindow *ui;
 };
 #endif // LOGINWINDOW_H
+
+
