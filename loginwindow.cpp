@@ -25,6 +25,8 @@ loginwindow::loginwindow(QWidget *parent)
         ui->code_photo->setPixmap(pixmap1);
     }
 
+
+
 }
 
 loginwindow::~loginwindow()
