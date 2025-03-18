@@ -4,6 +4,7 @@
 #include <regex>
 #include <map>
 #include <vector>
+#include <any>
 
 #define ICASE std::regex_constants::icase
 
@@ -21,16 +22,16 @@ std::string serializeColumns(const std::vector<std::map<std::string, std::string
     return result;
 }
 
-std::map<std::string, std::string> parseCreate(const std::string& sql) {
-    std::map<std::string, std::string> result = { {"type", "CREATE"}, {"status", "false"} };
+std::map<std::string, std::any> parseCreate(const std::string& sql) {
+    std::map<std::string, std::any> result = { {"type", "CREATE"}, {"status", false} };
 
     std::regex createPattern(R"(CREATE\s+(DATABASE|TABLE)\s+(\w+)\s*(?:\(([\s\S]*?)\))?\s*;)", ICASE);
     std::smatch match;
 
     if (std::regex_search(sql, match, createPattern)) {
-        result["status"] = "true";
-        result["object_type"] = match[1];
-        result["object_name"] = match[2];
+        result["status"] = true;
+        result["object_type"] = match[1].str();
+        result["object_name"] = match[2].str();
 
         if (result["object_type"] == "TABLE" && match[3].matched) {
             std::string columnsStr = match[3];
@@ -43,110 +44,103 @@ std::map<std::string, std::string> parseCreate(const std::string& sql) {
 
             for (std::sregex_iterator it = columnBegin; it != columnEnd; ++it) {
                 std::map<std::string, std::string> column;
-                column["name"] = (*it)[1];
-                column["type"] = (*it)[2];
-                column["constraints"] = (*it)[3];
+                column["name"] = (*it)[1].str();
+                column["type"] = (*it)[2].str();
+                column["constraints"] = (*it)[3].str();
                 columns.push_back(column);
-                std::cout << "columnName" << column["name"] << std::endl;
-                std::cout << "columnType" << column["type"] << std::endl;
-                std::cout << "columnConstraints" << column["constraints"] << std::endl;
             }
+            result["columns"] = columns;
         }
     }
-
-    std::cout<<result["object_type"] << "\t" << result["object_name"];
     return result;
 }
 
-std::map<std::string,std::string> parseDrop(const std::string& sql){
-    std::map<std::string,std::string> result;
-    result["type"] = "DROP";
-    result["status"] = "false";
-    result["mode"] = "restrict";
+std::map<std::string,std::any> parseDrop(const std::string& sql){
+    std::map<std::string,std::any> result = { {"type","DROP"}, {"status",false}, {"restrict",true} };
     std::regex pattern(R"(DROP\s(DATABASE|TABLE)\s(\w+)\s*(RESTRICT|CASCADE)*;)",ICASE);
     std::smatch match;
     if(std::regex_search(sql,match,pattern)){
-        result["status"]="true";
-        result["object_type"]=match[1];
-        result["object_name"]=match[2];
+        result["status"]=true;
+        result["object_type"]=match[1].str();
+        result["object_name"]=match[2].str();
+        
+        if (match[3].matched) {
+            result["restrict"] = (match[3].str() == "RESTRICT");
+        }
     }
     return result;
 }
 
-std::map<std::string, std::string> parseInsert(const std::string& sql) {
-    std::map<std::string, std::string> result = { {"type", "INSERT"}, {"status", "false"} };
+std::map<std::string, std::any> parseInsert(const std::string& sql) {
+    std::map<std::string, std::any> result = { {"type", "INSERT"}, {"status", false} };
 
-    std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([\w\s,]+)\)\s*VALUES\s*(.+);)", std::regex_constants::icase);
+    std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(.+);)", std::regex::icase);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
-        result["status"] = "true";
-        result["table"] = match[1];
-        result["columns"] = match[2];
-        std::string valuesStr = match[3];
+        result["status"] = true;
+        result["table"] = match[1].str();
 
-        std::regex colPattern(R"(\w+)");
-        auto colBegin = std::sregex_iterator(result["columns"].begin(), result["columns"].end(), colPattern);
-        auto colEnd = std::sregex_iterator();
         std::vector<std::string> columns;
+        std::regex colPattern(R"(\w+)");
+        auto colBegin = std::sregex_iterator(match[2].str().begin(), match[2].str().end(), colPattern);
+        auto colEnd = std::sregex_iterator();
 
-        for (std::sregex_iterator it = colBegin; it != colEnd; ++it) {
+        for (auto it = colBegin; it != colEnd; ++it) {
             columns.push_back(it->str());
         }
+        result["columns"] = columns;
 
-        std::regex groupPattern(R"(\(([^()]+)\))"); 
-        auto groupBegin = std::sregex_iterator(valuesStr.begin(), valuesStr.end(), groupPattern);
+        std::vector<std::vector<std::string>> valuesGroups;
+        std::regex groupPattern(R"(\(([^()]+)\))");
+        auto groupBegin = std::sregex_iterator(match[3].str().begin(), match[3].str().end(), groupPattern);
         auto groupEnd = std::sregex_iterator();
 
-        for (std::sregex_iterator it = groupBegin; it != groupEnd; ++it) {
+        for (auto it = groupBegin; it != groupEnd; ++it) {
             std::string groupValues = it->str(1);
-
-            std::regex valPattern(R"((?:'[^']*'|[^,]+))"); 
-            auto valBegin = std::sregex_iterator(groupValues.begin(), groupValues.end(), valPattern);
-            auto valEnd = std::sregex_iterator();
             std::vector<std::string> values;
 
-            for (std::sregex_iterator valIt = valBegin; valIt != valEnd; ++valIt) {
+            std::regex valPattern(R"((?:'[^']*'|[^,]+))");
+            auto valBegin = std::sregex_iterator(groupValues.begin(), groupValues.end(), valPattern);
+            auto valEnd = std::sregex_iterator();
+
+            for (auto valIt = valBegin; valIt != valEnd; ++valIt) {
                 std::string val = valIt->str();
                 val.erase(0, val.find_first_not_of(' '));
                 val.erase(val.find_last_not_of(' ') + 1);
-
                 values.push_back(val);
             }
 
-            if (columns.size() != values.size()) {
-                std::cerr << "Error: Number of columns and values do not match in group: " << groupValues << std::endl;
-                continue;
-            }
-            std::cout << "Group Values:" << std::endl;
-            for (size_t i = 0; i < columns.size(); ++i) {
-                std::cout << "  Column: " << columns[i] << ", Value: " << values[i] << std::endl;
+            if (columns.size() == values.size()) {
+                valuesGroups.push_back(values);
             }
         }
+
+        result["values"] = valuesGroups;
     }
 
     return result;
 }
 
-std::map<std::string,std::string> parseUse(const std::string& sql){
-    std::map<std::string, std::string> result = { {"type", "USE"}, {"status", "false"} };
+std::map<std::string,std::any> parseUse(const std::string& sql){
+    std::map<std::string, std::any> result = { {"type", "USE"}, {"status", false} };
     std::regex pattern(R"(USE\s+(\w)+;)",ICASE);
     std::smatch match;
 
     if(std::regex_search(sql,match,pattern)){
-        result["status"]="true";
-        result["name"] = match[1];
+        result["status"] = true;
+        result["name"] = match[1].str();
     }
     return result;
 }
 
-std::map<std::string, std::string> parseSelect(const std::string& sql) {
-    std::map<std::string, std::string> result = { {"type", "SELECT"}, {"status", "false"} };
+std::map<std::string, std::any> parseSelect(const std::string& sql) {
+    std::map<std::string, std::any> result = { {"type", "SELECT"}, {"status", false} };
     std::regex pattern(R"(SELECT\s+(.*?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.*?))?(?:\s+GROUP\s+BY\s+(.*?))?(?:\s+HAVING\s+(.*?))?(?:\s+ORDER\s+BY\s+(.*?))?(?:\s+LIMIT\s+(.*?))?)", ICASE);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
-        result["status"] = "true";
+        result["status"] = true;
 
         std::regex colRegex(R"(\w+(?:\s+AS\s+\w+)?)", ICASE);
         std::string matchStr = match[1].str();
@@ -170,15 +164,14 @@ std::map<std::string, std::string> parseSelect(const std::string& sql) {
     return result;
 }
 
-std::map<std::string, std::string> parseGrant(const std::string& sql) {
-    std::map<std::string, std::string> result = { {"type", "GRANT"}, {"status", "false"} };
+std::map<std::string, std::any> parseGrant(const std::string& sql) {
+    std::map<std::string, std::any> result = { {"type", "GRANT"}, {"status", false} };
     std::regex pattern(R"(GRANT\s+([\w,\s]+)\s+ON\s+(\w+)\s+TO\s+(\w+))", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = "true";
-        result["rights"] = match[1];
-        result["object"] = match[2];
-        result["user"] = match[3];
+        result["object"] = match[2].str();
+        result["user"] = match[3].str();
 
         std::vector<std::string> rightsList;
         std::regex rightsRegex(R"(\w+)");
@@ -193,6 +186,8 @@ std::map<std::string, std::string> parseGrant(const std::string& sql) {
             result["rights_list"] += (right + ",");
         }
         if (!result["rights_list"].empty()) result["rights_list"].pop_back();
+
+        result["rights"] = rightsList;
     }
     return result;
 }
@@ -262,12 +257,12 @@ std::map<std::string, std::string> parseShow(const std::string& sql) {
     return result;
 }
 
-std::map<std::string, std::string> parseUpdate(const std::string& sql) {
-    std::map<std::string, std::string> result = { {"type", "UPDATE"}, {"status", "false"} };
+std::map<std::string, std::any> parseUpdate(const std::string& sql) {
+    std::map<std::string, std::any> result = { {"type", "UPDATE"}, {"status", false} };
     std::regex pattern(R"(UPDATE\s+(\w+)\s+SET\s+(\w+)\s*=\s*(\w+)(?:\s+WHERE\s+(.+))?)", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
-        result["status"] = "true";
+        result["status"] = true;
         result["table"] = match[1];
         result["column"] = match[2];
         result["value"] = match[3];
@@ -276,24 +271,24 @@ std::map<std::string, std::string> parseUpdate(const std::string& sql) {
     return result;
 }
 
-std::map<std::string, std::string> parseDelete(const std::string& sql) {
-    std::map<std::string, std::string> result = { {"type", "DELETE"}, {"status", "false"} };
+std::map<std::string, std::any> parseDelete(const std::string& sql) {
+    std::map<std::string, std::any> result = { {"type", "DELETE"}, {"status", false} };
     std::regex pattern(R"(DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?)", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
-        result["status"] = "true";
+        result["status"] = true;
         result["table"] = match[1];
         if (match[2].matched) result["condition"] = match[2];
     }
     return result;
 }
 
-std::map<std::string, std::string> parseDescribe(const std::string& sql) {
-    std::map<std::string, std::string> result = { {"type", "DESCRIBE"}, {"status", "false"} };
+std::map<std::string, std::any> parseDescribe(const std::string& sql) {
+    std::map<std::string, std::any> result = { {"type", "DESCRIBE"}, {"status", false} };
     std::regex pattern(R"(DESCRIBE\s+(\w+)(?:\s+(\w+))?)", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
-        result["status"] = "true";
+        result["status"] = true;
         result["table"] = match[1];
         if (match[2].matched) result["column"] = match[2];
     }
