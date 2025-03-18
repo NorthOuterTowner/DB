@@ -62,6 +62,8 @@ MainWindow::MainWindow(QWidget *parent)
                              "border-radius: 10px; "           // 设置边框圆角
                              "}");
 
+    ui->tableWidget_2->verticalHeader()->setVisible(false);
+
 }
 
 MainWindow::~MainWindow()

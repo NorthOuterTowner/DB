@@ -213,6 +213,7 @@ border-color: rgb(0, 0, 0);</string>
    </property>
    <property name="styleSheet">
     <string notr="true">border-color: rgb(0, 0, 0);
+background-color: rgb(195, 195, 195);
 color: rgb(0, 0, 0);</string>
    </property>
    <property name="movable">
@@ -235,7 +236,8 @@ color: rgb(0, 0, 0);</string>
     </rect>
    </property>
    <property name="styleSheet">
-    <string notr="true">color: rgb(0, 0, 0);</string>
+    <string notr="true">color: rgb(0, 0, 0);
+background-color: rgb(134, 134, 134);</string>
    </property>
    <widget class="QMenu" name="new_db">
     <property name="title">
