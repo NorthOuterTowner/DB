@@ -6,10 +6,12 @@
         <file>res/image/table.png</file>
         <file>res/image/user.png</file>
         <file>res/image/yunx.png</file>
-        <file>res/image/new_db.png</file>
-        <file>res/image/new_table.png</file>
+        <file>res/image/biaos.png</file>
         <file>res/image/clear.png</file>
-        <file>res/image/exit.png</file>
         <file>res/image/save.png</file>
+        <file>res/image/already_SQL.png</file>
+        <file>res/image/new_db.png</file>
+        <file>res/image/new_SQL.png</file>
+        <file>res/image/new_table.png</file>
     </qresource>
 </RCC>

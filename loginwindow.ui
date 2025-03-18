@@ -13,6 +13,9 @@
   <property name="windowTitle">
    <string>loginwindow</string>
   </property>
+  <property name="styleSheet">
+   <string notr="true">background-color: rgb(255, 255, 255);</string>
+  </property>
   <widget class="QWidget" name="centralwidget">
    <widget class="QPushButton" name="button_signin">
     <property name="geometry">
@@ -22,6 +25,11 @@
       <width>91</width>
       <height>31</height>
      </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">border-color: rgb(0, 85, 255);
+background-color: rgb(170, 170, 127);
+color: rgb(0, 0, 0);</string>
     </property>
     <property name="text">
      <string>登录</string>
@@ -35,6 +43,11 @@
       <width>91</width>
       <height>31</height>
      </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">border-color: rgb(0, 85, 255);
+background-color: rgb(170, 170, 127);
+color: rgb(0, 0, 0);</string>
     </property>
     <property name="text">
      <string>退出</string>
@@ -55,6 +68,10 @@
       <pointsize>18</pointsize>
      </font>
     </property>
+    <property name="styleSheet">
+     <string notr="true">border-color: rgb(0, 0, 0);
+color: rgb(0, 0, 0);</string>
+    </property>
     <property name="text">
      <string>123213</string>
     </property>
@@ -73,6 +90,9 @@
       <family>STLiti</family>
       <pointsize>22</pointsize>
      </font>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color: rgb(0, 0, 0);</string>
     </property>
     <property name="text">
      <string>用户：</string>
@@ -93,6 +113,9 @@
       <pointsize>72</pointsize>
      </font>
     </property>
+    <property name="styleSheet">
+     <string notr="true">color: rgb(0, 0, 0);</string>
+    </property>
     <property name="text">
      <string>DBMS</string>
     </property>
@@ -100,7 +123,7 @@
    <widget class="QLabel" name="user_photo">
     <property name="geometry">
      <rect>
-      <x>230</x>
+      <x>220</x>
       <y>230</y>
       <width>41</width>
       <height>41</height>
@@ -118,6 +141,11 @@
       <width>91</width>
       <height>31</height>
      </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">border-color: rgb(0, 85, 255);
+background-color: rgb(170, 170, 127);
+color: rgb(0, 0, 0);</string>
     </property>
     <property name="text">
      <string>注册</string>
@@ -138,6 +166,9 @@
       <pointsize>22</pointsize>
      </font>
     </property>
+    <property name="styleSheet">
+     <string notr="true">color: rgb(0, 0, 0);</string>
+    </property>
     <property name="text">
      <string>密码：</string>
     </property>
@@ -157,6 +188,10 @@
       <pointsize>11</pointsize>
      </font>
     </property>
+    <property name="styleSheet">
+     <string notr="true">border-color: rgb(0, 0, 0);
+color: rgb(0, 0, 0);</string>
+    </property>
     <property name="text">
      <string>※※※※</string>
     </property>
@@ -164,7 +199,7 @@
    <widget class="QLabel" name="code_photo">
     <property name="geometry">
      <rect>
-      <x>230</x>
+      <x>220</x>
       <y>280</y>
       <width>41</width>
       <height>41</height>
@@ -174,6 +209,16 @@
      <string>TextLabel</string>
     </property>
    </widget>
+   <zorder>button_signin</zorder>
+   <zorder>button_exit</zorder>
+   <zorder>user_lable</zorder>
+   <zorder>title</zorder>
+   <zorder>user_photo</zorder>
+   <zorder>button_register</zorder>
+   <zorder>code_lable</zorder>
+   <zorder>code_photo</zorder>
+   <zorder>user_line</zorder>
+   <zorder>code_line</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
@@ -183,6 +228,10 @@
      <width>800</width>
      <height>17</height>
     </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">color: rgb(0, 0, 0);
+background-color: rgb(134, 134, 134);</string>
    </property>
    <widget class="QMenu" name="menu">
     <property name="title">
