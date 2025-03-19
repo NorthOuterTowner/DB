@@ -5,13 +5,31 @@
 #include <map>
 #include <vector>
 #include <variant>
-#include <any>
-
-#define ICASE std::regex_constants::icase
+#include <memory>
+#include <utility>
 
 Lexer::Lexer() {}
 
-std::string serializeColumns(const std::vector<std::map<std::string, std::string>>& columns) {
+struct Condition;
+struct LogicalOp;
+
+using Node = std::variant<Condition, LogicalOp>;
+
+struct Condition {
+    std::string column;
+    std::string op;
+    std::string value;
+};
+
+struct LogicalOp {
+    std::string op; // "AND" 或 "OR"
+    std::shared_ptr<Node> left;
+    std::shared_ptr<Node> right;
+};
+
+#define ICASE std::regex_constants::icase
+
+/*std::string serializeColumns(const std::vector<std::map<std::string, std::string>>& columns) {
     std::string result;
     for (const auto& column : columns) {
         result += column.at("name") + " " + column.at("type");
@@ -21,11 +39,62 @@ std::string serializeColumns(const std::vector<std::map<std::string, std::string
         result += ";";
     }
     return result;
-}
-
+}*/
 using SQLVal = std::variant< bool, std::string, std::vector<std::string>,
                             std::vector<std::map<std::string,std::string>>,
-                            std::vector<std::vector<std::string>> >;
+                            std::vector<std::vector<std::string>>,std::shared_ptr<Node> >;
+
+std::shared_ptr<Node> parseWhereClause(const std::string& whereStr);
+
+// 解析单个条件
+std::shared_ptr<Node> parseCondition(const std::string& conditionStr) {
+    std::regex conditionPattern(R"((\w+)\s*([=<>!]+)\s*('[^']*'|\w+))");
+    std::smatch match;
+    if (std::regex_search(conditionStr, match, conditionPattern)) {
+        Condition condition;
+        condition.column = match[1].str();
+        condition.op = match[2].str();
+        condition.value = match[3].str();
+        return std::make_shared<Node>(condition);
+    }
+    return nullptr;
+}
+
+// 解析逻辑运算符
+std::shared_ptr<Node> parseLogicalOp(const std::string& logicalStr) {
+    std::regex logicalPattern(R"((.*?)\s+(AND|OR)\s+(.*))", std::regex_constants::icase);
+    std::smatch match;
+    if (std::regex_search(logicalStr, match, logicalPattern)) {
+        std::string leftStr = match[1].str();
+        std::string op = match[2].str();
+        std::string rightStr = match[3].str();
+
+        LogicalOp logicalOp;
+        logicalOp.op = op;
+        logicalOp.left = parseWhereClause(leftStr);
+        logicalOp.right = parseWhereClause(rightStr);
+
+        return std::make_shared<Node>(logicalOp);
+    }
+    return nullptr;
+}
+
+// 解析WHERE子句
+std::shared_ptr<Node> parseWhereClause(const std::string& whereStr) {
+    // 尝试解析逻辑运算符
+    auto logicalNode = parseLogicalOp(whereStr);
+    if (logicalNode) {
+        return logicalNode;
+    }
+
+    // 如果没有逻辑运算符，则解析为单个条件
+    auto conditionNode = parseCondition(whereStr);
+    if (conditionNode) {
+        return conditionNode;
+    }
+
+    return nullptr;
+}
 
 /**Test Finished 
  * Wait for examination
@@ -172,7 +241,7 @@ std::map<std::string, SQLVal> parseSelect(const std::string& sql) {
         result["columns"] = columns;
 
         result["table"] = std::string(match[2].str());
-        if (match[3].matched) result["where"] = std::string(match[3].str());
+        if (match[3].matched) result["where"] = parseWhereClause(std::string(match[3].str()));
         if (match[4].matched) result["group_by"] = std::string(match[4].str());
         if (match[5].matched) result["having"] = std::string(match[5].str());
         if (match[6].matched) result["order_by"] = std::string(match[6].str());
@@ -293,6 +362,7 @@ std::map<std::string, SQLVal> parseUpdate(const std::string& sql) {
     }
     return result;
 }
+
 /**Test Finished 
  * Wait for examination
  * TODO:Need an extra function to parse the condition
