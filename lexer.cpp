@@ -149,33 +149,35 @@ std::map<std::string,SQLVal> parseUse(const std::string& sql){
     return result;
 }
 
-std::map<std::string, std::string> parseSelect(const std::string& sql) {
-    std::map<std::string, std::string> result = { {"type", "SELECT"}, {"status", "false"} };
-    std::regex pattern(R"(SELECT\s+(.*?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.*?))?(?:\s+GROUP\s+BY\s+(.*?))?(?:\s+HAVING\s+(.*?))?(?:\s+ORDER\s+BY\s+(.*?))?(?:\s+LIMIT\s+(.*?))?)", ICASE);
+/**Test Finished 
+ * Wait for examination
+ * TODO:Need to parse "AS" and conditions
+*/
+std::map<std::string, SQLVal> parseSelect(const std::string& sql) {
+    std::map<std::string, SQLVal> result = { {"type", std::string("SELECT")}, {"status", false} };
+    std::regex pattern(R"(SELECT\s+(.*?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.*?))?(?:\s+GROUP\s+BY\s+(.*?))?(?:\s+HAVING\s+(.*?))?(?:\s+ORDER\s+BY\s+(.*?))?(?:\s+LIMIT\s+(.*?))?;$)", ICASE);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
-        result["status"] = "true";
+        result["status"] = true;
 
         std::regex colRegex(R"(\w+(?:\s+AS\s+\w+)?)", ICASE);
         std::string matchStr = match[1].str();
         auto colBegin = std::sregex_iterator(matchStr.begin(), matchStr.end(), colRegex);
         auto colEnd = std::sregex_iterator();
-        std::string columns;
+        std::vector<std::string> columns;
         for (auto it = colBegin; it != colEnd; ++it) {
-            columns += it->str() + ",";
+            columns.push_back(it->str());
         }
-        if (!columns.empty()) columns.pop_back();
         result["columns"] = columns;
 
-        result["table"] = match[2];
-        if (match[3].matched) result["where"] = match[3];
-        if (match[4].matched) result["group_by"] = match[4];
-        if (match[5].matched) result["having"] = match[5];
-        if (match[6].matched) result["order_by"] = match[6];
-        if (match[7].matched) result["limit"] = match[7];
+        result["table"] = std::string(match[2].str());
+        if (match[3].matched) result["where"] = std::string(match[3].str());
+        if (match[4].matched) result["group_by"] = std::string(match[4].str());
+        if (match[5].matched) result["having"] = std::string(match[5].str());
+        if (match[6].matched) result["order_by"] = std::string(match[6].str());
+        if (match[7].matched) result["limit"] = std::string(match[7].str());
     }
-    std::cout << result["status"] << std::endl;
     return result;
 }
 
@@ -231,28 +233,31 @@ std::map<std::string, SQLVal> parseRevoke(const std::string& sql) {
     return result;
 }
 
-std::map<std::string, std::string> parseAlter(const std::string& sql) {
-    std::map<std::string, std::string> result = { {"type", "ALTER"}, {"status", "false"} } ;
-    std::regex pattern(R"(ALTER\s+TABLE\s+(\w+)\s+(ADD|MODIFY|DROP)\s+(.*))", ICASE);
+/**Test Finished 
+ * Wait for examination
+*/
+std::map<std::string, SQLVal> parseAlter(const std::string& sql) {
+    std::map<std::string, SQLVal> result = { {"type", std::string("ALTER")}, {"status", false} } ;
+    std::regex pattern(R"(ALTER\s+TABLE\s+(\w+)\s+(ADD|MODIFY|DROP)\s+([\s\S]*);$)", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
-        result["status"] = "true";
-        result["table"] = match[1];
-        result["action"] = match[2];
-        std::string columnsStr = match[3];
+        result["status"] = true;
+        result["table"] = std::string(match[1].str());
+        result["action"] = std::string(match[2].str());
+        std::string columnsStr = std::string(match[3].str());
 
         std::vector<std::map<std::string, std::string>> columns;
-        std::regex columnPattern(R"((\w+)\s+(\w+)\s*([^,]*))");
+        std::regex columnPattern(R"((\w+)\s+([\w\(\)]+)\s*([^,]*))");
         auto columnBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), columnPattern);
         auto columnEnd = std::sregex_iterator();
         for (std::sregex_iterator it = columnBegin; it != columnEnd; ++it) {
             std::map<std::string, std::string> column;
-            column["name"] = (*it)[1];
-            column["type"] = (*it)[2];
-            column["constraints"] = (*it)[3];
+            column["name"] = utils::strip((*it)[1].str());
+            column["type"] = utils::strip((*it)[2].str());
+            column["constraints"] = utils::strip((*it)[3].str());
             columns.push_back(column);
         }
-        result["columns"] = serializeColumns(columns);
+        result["columns"] = columns;
     }
     return result;
 }
@@ -272,16 +277,19 @@ std::map<std::string, SQLVal> parseShow(const std::string& sql) {
     return result;
 }
 
-std::map<std::string, std::string> parseUpdate(const std::string& sql) {
-    std::map<std::string, std::string> result = { {"type", "UPDATE"}, {"status", "false"} };
-    std::regex pattern(R"(UPDATE\s+(\w+)\s+SET\s+(\w+)\s*=\s*(\w+)(?:\s+WHERE\s+(.+))?)", ICASE);
+/**Test Finished 
+ * Wait for examination
+*/
+std::map<std::string, SQLVal> parseUpdate(const std::string& sql) {
+    std::map<std::string, SQLVal> result = { {"type", std::string("UPDATE")}, {"status", false} };
+    std::regex pattern(R"(UPDATE\s+(\w+)\s+SET\s+(\w+)\s*=\s*(\w+)\s+WHERE\s+(.+);$)", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
-        result["status"] = "true";
-        result["table"] = match[1];
-        result["column"] = match[2];
-        result["value"] = match[3];
-        if (match[4].matched) result["condition"] = match[4];
+        result["status"] = true;
+        result["table"] = std::string(match[1].str());
+        result["column"] = std::string(match[2].str());
+        result["value"] = std::string(match[3].str());
+        if (match[4].matched) result["condition"] = std::string(match[4].str());
     }
     return result;
 }
@@ -320,14 +328,14 @@ std::map<std::string, SQLVal> parseSQL(const std::string& sql) {
     std::vector<std::pair<std::regex, ParseFunc>> patterns = {
         {std::regex(R"(^CREATE\s)", ICASE), parseCreate},
         {std::regex(R"(^INSERT\s)", ICASE), parseInsert},
-        //{std::regex(R"(^SELECT\s)", ICASE), parseSelect},
+        {std::regex(R"(^SELECT\s)", ICASE), parseSelect},
         {std::regex(R"(^USE\s)", ICASE), parseUse},
         {std::regex(R"(^DROP\s)", ICASE), parseDrop},
         {std::regex(R"(^GRANT\s)", ICASE), parseGrant},
         {std::regex(R"(^REVOKE\s)", ICASE), parseRevoke},
-        //{std::regex(R"(^ALTER\s)", ICASE), parseAlter},
+        {std::regex(R"(^ALTER\s)", ICASE), parseAlter},
         {std::regex(R"(^SHOW\s)", ICASE), parseShow},
-        //{std::regex(R"(^UPDATE\s)", ICASE), parseUpdate},
+        {std::regex(R"(^UPDATE\s)", ICASE), parseUpdate},
         {std::regex(R"(^DELETE\s)", ICASE), parseDelete},
         {std::regex(R"(^DESCRIBE\s)", ICASE), parseDescribe}
     };

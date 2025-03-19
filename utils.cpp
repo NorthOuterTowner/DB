@@ -25,3 +25,10 @@ std::vector<std::string> utils::split(const std::string& str, const std::string&
 
     return tokens;
 }
+
+std::string utils::strip(const std::string& str) {
+    auto start = str.find_first_not_of(" \t\r\n");
+    auto end = str.find_last_not_of(" \t\r\n");
+
+    return (start == std::string::npos) ? "" : str.substr(start, end - start + 1);
+}
