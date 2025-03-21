@@ -3,7 +3,7 @@
 
 #include <QObject>
 #include <string>
-
+/**/
 class Lexer : public QObject
 {
     Q_OBJECT
