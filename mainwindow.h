@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include "lexer.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -17,7 +18,12 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+private slots:
+    void onNewDatabaseTriggered(); // 槽，用于处理按钮点击事件,完成新的数据库的建立
+    void deleteDatabaseTriggered(); // 槽，用于处理按钮点击事件,完成新的数据库的建立
+
 private:
     Ui::MainWindow *ui;
+    Lexer lexer; // 数据库解析器实例
 };
 #endif // MAINWINDOW_H
