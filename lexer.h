@@ -7,7 +7,10 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <QTextEdit>
+#include <QWidget>
 #include "dbManager.h"
+#include "databaselistdialog.h"
 
 // 前向声明
 struct Condition;  // 进行前向声明
@@ -31,12 +34,15 @@ class Lexer : public QObject
     Q_OBJECT
 
 public:
-    Lexer();
+    Lexer(QWidget *parent = nullptr);
 
 public slots:
     void handleRawSQL(QString rawSql); // 这是一个槽函数
 
 public:
+    // 新增设置 QTreeWidget 指针的方法
+    void setTreeWidget(QTreeWidget* treeWidget);//用于在db_list中添加或删除数据库
+    void reloadDbManagerDatabases();//用于初始化db_list
     std::shared_ptr<Node> parseCondition(const std::string& conditionStr);
     std::shared_ptr<Node> parseLogicalOp(const std::string& logicalStr);
     std::shared_ptr<Node> parseWhereClause(const std::string& whereStr);
@@ -52,10 +58,15 @@ public:
     std::map<std::string, SQLVal> parseUpdate(const std::string& sql);
     std::map<std::string, SQLVal> parseDelete(const std::string& sql);
     std::map<std::string, SQLVal> parseDescribe(const std::string& sql);
-    std::map<std::string, SQLVal> parseSQL(const std::string& sql); // 声明的功能
+    std::map<std::string, SQLVal> parseSQL(const std::string& sql);
+    //void setTextEdit(QTextEdit* textEdit); // 用于SHOW DATABASES命令
 
 private:
     dbManager dbMgr; // 数据库管理器
+    QTreeWidget* treeWidget;// 用于在目录下显示数据库
+    //QTextEdit* textEdit; // 用于SHOW DATABASES命令
+    QWidget *parentWidget; // 新增成员变量，用于保存父窗口指针
+    std::string currentDatabase; // 新增：记录当前使用的数据库名称
 };
 
 #endif // LEXER_H

@@ -1,6 +1,7 @@
 #include "lexer.h"
 #include "utils.h"
 #include "dbManager.h"
+#include "databaselistdialog.h"
 #include <iostream>
 #include <regex>
 #include <map>
@@ -8,8 +9,28 @@
 #include <variant>
 #include <memory>
 #include <utility>
+#include <algorithm>
+#include <QDebug>
 
-Lexer::Lexer() {}
+
+Lexer::Lexer(QWidget *parent) : parentWidget(parent) {}
+
+
+// 实现设置 QTreeWidget 指针的方法，传递给 dbManager
+void Lexer::setTreeWidget(QTreeWidget* treeWidget) {
+    this->treeWidget = treeWidget;
+    dbMgr.setTreeWidget(treeWidget);
+}
+
+// 实现 reloadDbManagerDatabases 方法
+void Lexer::reloadDbManagerDatabases() {
+    dbMgr.reloadDatabases();
+}
+
+/*实现SHOW DATABASES语句的实现
+void Lexer::setTextEdit(QTextEdit* textEdit) {
+    this->textEdit = textEdit;
+}*/
 
 struct Condition;
 struct LogicalOp;
@@ -245,14 +266,17 @@ std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
 /**Test Finished 
  * Wait for examination
 */
-std::map<std::string,SQLVal> Lexer::parseUse(const std::string& sql){
+std::map<std::string, SQLVal> Lexer::parseUse(const std::string& sql){
     std::map<std::string, SQLVal> result = { {"type", std::string("USE")}, {"status", false} };
-    std::regex pattern(R"(USE\s+(\w)+;$)",ICASE);
+    std::regex pattern(R"(USE\s+(\w+))",ICASE);
     std::smatch match;
 
     if(std::regex_search(sql,match,pattern)){
         result["status"] = true;
-        result["name"] = std::string(match[1].str());
+        std::string dbName = std::string(match[1].str());
+        result["name"] = dbName;
+        currentDatabase = dbName; // 更新当前使用的数据库名称
+        dbMgr.setCurrentDatabase(dbName); // 通知 dbManager 当前使用的数据库
     }
     return result;
 }
@@ -375,15 +399,27 @@ std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql) {
 */
 std::map<std::string, SQLVal> Lexer::parseShow(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("SHOW")}, {"status", false} };
-    std::regex pattern(R"(SHOW\s+(TABLES|DATABASES)(?:\s+FROM\s+(\w+))?;$)", ICASE);
+    std::regex pattern(R"(SHOW\s+(TABLES|DATABASES)(?:\s+FROM\s+(\w+))?)", std::regex::icase);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
         result["item"] = std::string(match[1].str());
         if (match[2].matched) result["database"] = match[2];
+
+        if (std::string(match[1].str()) == "DATABASES") {
+            std::vector<std::string> dbNames = dbMgr.getDatabaseNames();
+            QStringList qDbNames;
+            for (const auto& name : dbNames) {
+                qDbNames.append(QString::fromStdString(name));
+            }
+
+            DatabaseListDialog dialog(qDbNames, parentWidget);
+            dialog.exec();
+        }
     }
     return result;
 }
+
 
 /**Test Finished 
  * Wait for examination
@@ -458,6 +494,7 @@ std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
     }
     return { {"type", std::string("UNKNOWN")}, {"status", false} };
 }
+
 void Lexer::handleRawSQL(QString rawSql){
     std::vector<std::string> sqls=utils::split(rawSql.toStdString(),";");
     for(std::string sql:sqls){
