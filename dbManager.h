@@ -35,7 +35,7 @@ private:
     };
 
     std::vector<DatabaseInfo> databases; // 存储数据库对象
-    const std::string dbFilePath = "./databases.txt"; // 数据库文件路径
+    const std::string dbFilePath = "../../res/databases.txt"; // 数据库文件路径
     QTreeWidget* db_list; // 指向 QTreeWidget 的指针
     std::string currentDatabase; // 新增：记录当前使用的数据库名称
 };
