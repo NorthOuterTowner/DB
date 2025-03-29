@@ -1,5 +1,5 @@
 # Ignore compile file
-#/build/
+/build/
 /cmake-build-*/
 
 # Ignore user file
