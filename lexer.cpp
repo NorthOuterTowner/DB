@@ -48,7 +48,7 @@ std::shared_ptr<Node> parseWhereClause(const std::string& whereStr);
 
 // 解析单个条件
 std::shared_ptr<Node> parseCondition(const std::string& conditionStr) {
-    std::regex conditionPattern(R"((\w+)\s*([=<>!]+)\s*('[^']*'|\w+))");
+    std::regex conditionPattern(R"((\w+)\s*([=<>!]+)\s*('[^']*'|\w+))");//定义正则表达式
     std::smatch match;
     if (std::regex_search(conditionStr, match, conditionPattern)) {
         Condition condition;
@@ -102,7 +102,7 @@ std::shared_ptr<Node> parseWhereClause(const std::string& whereStr) {
 std::map<std::string, SQLVal> parseCreate(const std::string& sql) {
     std::map<std::string,SQLVal> result = { {"type", std::string("CREATE")}, {"status", false} };
 
-    std::regex createPattern(R"(CREATE\s+(DATABASE|TABLE)\s+(\w+)\s*(?:\(([\s\S]*?)\))?\s*;$)", ICASE);
+    std::regex createPattern(R"(CREATE\s+(DATABASE|TABLE)\s+(\w+)\s*(?:\(([\s\S]*?)\))?\s*;?)", ICASE);
     std::smatch match;
 
     if (std::regex_search(sql, match, createPattern)) {
@@ -112,6 +112,7 @@ std::map<std::string, SQLVal> parseCreate(const std::string& sql) {
 
         if (std::get<std::string>(result["object_type"]) == std::string("TABLE") && match[3].matched) {
             std::string columnsStr = match[3];
+            //改进类型匹配 允许想varchar（20）这样有括号的形式 没改
             std::regex columnPattern(R"(\s*(\w+)\s+(\w+)\s*([\s\S]*?)\s*(?:,|$))");
             std::smatch columnMatch;
             std::vector<std::map<std::string, std::string>> columns;
@@ -123,7 +124,18 @@ std::map<std::string, SQLVal> parseCreate(const std::string& sql) {
                 std::map<std::string, std::string> column;
                 column["name"] = (*it)[1].str();
                 column["type"] = (*it)[2].str();
-                column["constraints"] = (*it)[3].str();
+                std::string constraints = (*it)[3].str();
+
+                //处理外键约束
+                std::regex foreignKeyPattern(R"(FOREIGN KEY\s*\((\w+)\)\s*REFERENCES\s+(\w+)\s*\((\w+)\))");
+                std::smatch foreignKeyMatch;
+                if(std::regex_search(constraints,foreignKeyMatch,foreignKeyPattern)){
+                    column["foreign_key_column"] = foreignKeyMatch[1].str();
+                    column["referenced_table"] = foreignKeyMatch[2].str();
+                    column["referenced_column"]= foreignKeyMatch[3].str();
+                }
+
+                column["constraints"]=constraints;
                 columns.push_back(column);
             }
             result["columns"] = columns;
