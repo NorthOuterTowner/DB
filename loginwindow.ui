@@ -73,7 +73,7 @@ color: rgb(0, 0, 0);</string>
 color: rgb(0, 0, 0);</string>
     </property>
     <property name="text">
-     <string>123213</string>
+     <string>root</string>
     </property>
    </widget>
    <widget class="QLabel" name="user_lable">
@@ -193,7 +193,7 @@ color: rgb(0, 0, 0);</string>
 color: rgb(0, 0, 0);</string>
     </property>
     <property name="text">
-     <string>※※※※</string>
+     <string>root</string>
     </property>
    </widget>
    <widget class="QLabel" name="code_photo">
@@ -226,7 +226,7 @@ color: rgb(0, 0, 0);</string>
      <x>0</x>
      <y>0</y>
      <width>800</width>
-     <height>17</height>
+     <height>25</height>
     </rect>
    </property>
    <property name="styleSheet">

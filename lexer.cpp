@@ -1,6 +1,7 @@
 #include "lexer.h"
 #include "utils.h"
 #include "dbManager.h"
+#include "usermanage.h"
 #include "databaselistdialog.h"
 #include <iostream>
 #include <regex>
@@ -9,7 +10,6 @@
 #include <variant>
 #include <memory>
 #include <utility>
-#include <algorithm>
 #include <QDebug>
 
 
@@ -51,17 +51,6 @@ struct LogicalOp {
 
 #define ICASE std::regex_constants::icase
 
-/*std::string serializeColumns(const std::vector<std::map<std::string, std::string>>& columns) {
-    std::string result;
-    for (const auto& column : columns) {
-        result += column.at("name") + " " + column.at("type");
-        if (!column.at("constraints").empty()) {
-            result += " " + column.at("constraints");
-        }
-        result += ";";
-    }
-    return result;
-}*/
 using SQLVal = std::variant< bool, std::string, std::vector<std::string>,
                             std::vector<std::map<std::string,std::string>>,
                             std::vector<std::vector<std::string>>,std::shared_ptr<Node> >;
@@ -118,23 +107,25 @@ std::shared_ptr<Node> Lexer::parseWhereClause(const std::string& whereStr) {
     return nullptr;
 }
 
-/**Test Finished 
- * Wait for examination
-*/
-
 // 实现解析创建数据库的函数
 std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
 
     std::map<std::string, SQLVal> result = { {"type", "CREATE"}, {"status", false} };
 
-    std::regex createPattern(R"(CREATE\s+(DATABASE|TABLE)\s+(\w+)\s*(?:\(([\s\S]*?)\))?\s*)", std::regex_constants::icase);
+    std::regex createPattern(R"(CREATE\s+(DATABASE|TABLE|USER)\s+([\w@]+)\s*(?:\(([\s\S]*?)\))?\s*)", std::regex_constants::icase);
     std::smatch match;
 
     if (std::regex_search(sql, match, createPattern)) {
         result["status"] = true; // 状态为成功
         result["object_type"] = std::string(match[1].str());
         result["object_name"] = std::string(match[2].str());
-
+        std::vector<std::string> userInfo=utils::split(std::string(std::get<std::string>(result["object_name"])),"@");
+        if(std::get<std::string>(result["object_type"])=="USER"){
+            std::cout<<"TRUE"<<std::endl;
+            std::string name = userInfo[0];
+            std::string pwd = userInfo[1];
+            UserManage::createUser(name,pwd);
+        }
         // 如果创建的是数据库
         if (std::get<std::string>(result["object_type"]) == "DATABASE") {
             // 使用 dbManager 创建数据库
@@ -180,7 +171,7 @@ std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
 // 实现解析删除数据库的函数
 std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("DROP")}, {"status", false}, {"restrict", true} };
-    std::regex pattern(R"(DROP\s+(DATABASE|TABLE)\s+(\w+)\s*(RESTRICT|CASCADE)*)", std::regex_constants::icase);
+    std::regex pattern(R"(DROP\s+(DATABASE|TABLE|USER)\s+(\w+)\s*(RESTRICT|CASCADE)*)", std::regex_constants::icase);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
@@ -188,6 +179,9 @@ std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
         result["object_type"] = std::string(match[1].str());
         result["object_name"] = std::string(match[2].str());
 
+        if(std::get<std::string>(result["object_type"])=="USER"){
+            UserManage::dropUser(std::get<std::string>(result["object_name"]));
+        }
         // 使用 dbManager 删除数据库
         if (std::get<std::string>(result["object_type"]) == "DATABASE") {
             if (std::holds_alternative<std::string>(result["object_name"])) { // 检查类型
@@ -208,10 +202,6 @@ std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
     return result;
 }
 
-
-/**Test Finished 
- * Wait for examination
-*/
 std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", "INSERT"}, {"status", false} };
 
