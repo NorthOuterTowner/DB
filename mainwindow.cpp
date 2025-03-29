@@ -2,13 +2,20 @@
 #include "./ui_mainwindow.h"
 #include <QInputDialog>
 #include <QLineEdit>
+#include <iostream>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
-    , lexer() // 初始化 lexer
+    , lexer(this) // 传递 this 指针给 Lexer 构造函数
 {
     ui->setupUi(this);
+
+
+    // 调用 lexer 的 setTreeWidget 方法设置 QTreeWidget 指针
+    lexer.setTreeWidget(ui->db_list);
+    lexer.reloadDbManagerDatabases(); // 调用新增的公共方法重新加载数据库信息
+    //lexer.setTextEdit(ui->textEdit); // 新增设置 QTextEdit 指针用于SHOW DATABASES
 
 
     QIcon newdb_icon("://res/image/new_db.png");
@@ -31,8 +38,6 @@ MainWindow::MainWindow(QWidget *parent)
     //创建快捷项等同于菜单项
     QAction * new_db = new QAction("新建数据库");
     new_db->setIcon(newdb_icon);
-
-    // 连接按钮的 triggered 信号到自定义槽
     connect(new_db, &QAction::triggered, this, &MainWindow::onNewDatabaseTriggered);
 
     QAction * del_db = new QAction("删除数据库");
@@ -52,6 +57,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     QAction * start = new QAction("运行SQL命令");
     start->setIcon(start_icon);
+    connect(start, &QAction::triggered, this, &MainWindow::startTriggered);
 
     QAction * save = new QAction("保存至本地");
     save->setIcon(save_icon);
@@ -70,7 +76,6 @@ MainWindow::MainWindow(QWidget *parent)
     ui->toolBar->addAction(clear);
 
     //实现工具栏中的按钮的对应功能
-
 
 
     ui->frame->setStyleSheet("QFrame {"
@@ -125,5 +130,22 @@ void MainWindow::deleteDatabaseTriggered()
         std::cout << "Deleting database with SQL: " << sql.toStdString() << std::endl; // 输出 SQL 语句
         // 调用 Lexer 的处理方法，传递用户输入的 SQL 语句
         lexer.handleRawSQL(sql);
+    }
+}
+
+void MainWindow::startTriggered()
+{
+    //从文本框读取用户输入的sql语句
+    QString sql = ui->textEdit->toPlainText();
+
+    // 确定用户输入不为空
+    if (!sql.isEmpty()) {
+        //调试语句
+        std::cout << "SQL: " << sql.toStdString() << std::endl; // 输出 SQL 语句
+        // 调用 Lexer 的处理方法，传递用户输入的 SQL 语句
+        lexer.handleRawSQL(sql);
+
+        // 清空 QTextEdit 中的内容
+        ui->textEdit->clear();
     }
 }

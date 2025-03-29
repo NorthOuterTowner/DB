@@ -3,10 +3,15 @@
 #include <QApplication>
 #include <QLocale>
 #include <QTranslator>
+#include <QDir>
+#include <QDebug>
 
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+
+    //显示当前工作目录
+    //qDebug() << "Current working directory:" << QDir::currentPath();
 
     QTranslator translator;
     const QStringList uiLanguages = QLocale::system().uiLanguages();

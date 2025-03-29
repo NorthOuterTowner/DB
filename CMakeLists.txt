@@ -34,6 +34,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         utils.h utils.cpp
         dbManager.h
         dbManager.cpp
+        build/Desktop_Qt_6_7_2_MinGW_64_bit-Debug/databases.txt
+        databaselistdialog.h databaselistdialog.cpp
+
+
 
 
 
