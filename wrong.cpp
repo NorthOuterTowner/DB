@@ -7,6 +7,8 @@ Wrong::Wrong(std::string info,QWidget *parent)
 {
     ui->setupUi(this);
     ui->info->setText(QString::fromStdString(info));
+    QPixmap* png = new QPixmap(":/res/icons/fatal.png");
+    ui->png->setPixmap(*png);
 }
 
 Wrong::~Wrong()

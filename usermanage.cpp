@@ -6,7 +6,6 @@
 
 UserManage::UserManage() {}
 void UserManage::createUser(std::string username,std::string password){
-    std::cout<<"true2"<<std::endl;
     std::ofstream file("../../res/user.txt",std::ios::app);
     if(!file.is_open()){
         std::cerr << "Failed to open file";
@@ -62,13 +61,13 @@ bool UserManage::findUser(std::string username,std::string password){
 
     while (std::getline(file, line)) {
         std::vector<std::string> userInfo = utils::split(line,"\t");
-        if (userInfo[1]==username && userInfo[1]==password){
+        if (userInfo[0]==username && userInfo[1]==password){
             res = true;
-        }else if(userInfo[1]==username){
-            Wrong* wrong = new Wrong("password is wrong.");
+        }else if(userInfo[0]==username){
+            Wrong* wrong = new Wrong("The password input is wrong for this user.");
             wrong->show();
         }else{
-            Wrong* wrong = new Wrong("User is not exist.");
+            Wrong* wrong = new Wrong("This user is not exist or not found.");
             wrong->show();
         }
     }

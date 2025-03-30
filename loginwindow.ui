@@ -193,7 +193,7 @@ color: rgb(0, 0, 0);</string>
 color: rgb(0, 0, 0);</string>
     </property>
     <property name="text">
-     <string>root</string>
+     <string/>
     </property>
    </widget>
    <widget class="QLabel" name="code_photo">

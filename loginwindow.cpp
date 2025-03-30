@@ -2,7 +2,7 @@
 #include "./ui_loginwindow.h"
 #include "usermanage.h"
 #include "mainwindow.h"
-
+#include <string>
 loginwindow::loginwindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::loginwindow)
