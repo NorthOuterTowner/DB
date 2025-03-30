@@ -1,0 +1,2 @@
+1 db_name 2025-03-29 12:48:39 utf8
+2 db2 2025-03-29 17:16:59 utf8 utf8_general_ci

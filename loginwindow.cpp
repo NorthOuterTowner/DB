@@ -1,7 +1,8 @@
 #include "loginwindow.h"
 #include "./ui_loginwindow.h"
+#include "usermanage.h"
 #include "mainwindow.h"
-
+#include <string>
 loginwindow::loginwindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::loginwindow)
@@ -36,8 +37,13 @@ loginwindow::~loginwindow()
 
 void loginwindow::on_button_signin_clicked()
 {
-    MainWindow* w=new MainWindow;
-    w->show();
-    this->hide();
+    std::string user = ui->user_line->text().toStdString();
+    std::string pwd = ui->code_line->text().toStdString();
+    bool status = UserManage::findUser(user,pwd);
+    if(status){
+        MainWindow* w=new MainWindow;
+        w->show();
+        this->hide();
+    };
 }
 

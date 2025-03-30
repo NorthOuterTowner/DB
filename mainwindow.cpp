@@ -1,14 +1,26 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
+#include <QInputDialog>
+#include <QLineEdit>
+#include <iostream>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
+    , lexer(this) // 传递 this 指针给 Lexer 构造函数
 {
     ui->setupUi(this);
 
 
+    // 调用 lexer 的 setTreeWidget 方法设置 QTreeWidget 指针
+    lexer.setTreeWidget(ui->db_list);
+    lexer.reloadDbManagerDatabases(); // 调用新增的公共方法重新加载数据库信息
+    //lexer.setTextEdit(ui->textEdit); // 新增设置 QTextEdit 指针用于SHOW DATABASES
+
+
     QIcon newdb_icon("://res/image/new_db.png");
+
+    QIcon deldb_icon("://res/image/del_db.png");
 
     QIcon newtable_icon("://res/image/new_table.png");
 
@@ -26,7 +38,13 @@ MainWindow::MainWindow(QWidget *parent)
     //创建快捷项等同于菜单项
     QAction * new_db = new QAction("新建数据库");
     new_db->setIcon(newdb_icon);
+    connect(new_db, &QAction::triggered, this, &MainWindow::onNewDatabaseTriggered);
 
+    QAction * del_db = new QAction("删除数据库");
+    del_db->setIcon(deldb_icon);
+
+    // 连接按钮的 triggered 信号到自定义槽
+    connect(del_db, &QAction::triggered, this, &MainWindow::deleteDatabaseTriggered);
 
     QAction * new_table = new QAction("新建表");
     new_table->setIcon(newtable_icon);
@@ -39,6 +57,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     QAction * start = new QAction("运行SQL命令");
     start->setIcon(start_icon);
+    connect(start, &QAction::triggered, this, &MainWindow::startTriggered);
 
     QAction * save = new QAction("保存至本地");
     save->setIcon(save_icon);
@@ -48,12 +67,15 @@ MainWindow::MainWindow(QWidget *parent)
 
     //添加到工具栏中
     ui->toolBar->addAction(new_db);
+    ui->toolBar->addAction(del_db);
     ui->toolBar->addAction(new_table);
     ui->toolBar->addAction(new_SQL);
     ui->toolBar->addAction(already_SQL);
     ui->toolBar->addAction(start);
     ui->toolBar->addAction(save);
     ui->toolBar->addAction(clear);
+
+    //实现工具栏中的按钮的对应功能
 
 
     ui->frame->setStyleSheet("QFrame {"
@@ -69,4 +91,61 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+void MainWindow::onNewDatabaseTriggered()
+{
+    bool ok; // 声明一个布尔型变量用于跟踪用户是否确认输入
+
+    // 弹出输入对话框，允许用户输入 SQL 语句
+    QString sql = QInputDialog::getText(this, tr("新建数据库"),  // 对话框标题
+                                        tr("请输入创建数据库的 SQL 语句："), // 提示文本
+                                        QLineEdit::Normal, // 输入框模式设置为普通
+                                        tr("CREATE DATABASE db_name;"), // 默认文本示例
+                                        &ok); // 将 ok 的地址传递，以便获取用户的确认状态
+
+    // 检查用户是否点击了确定，并且输入不为空
+    if (ok && !sql.isEmpty()) {
+        //调试语句
+        std::cout << "Creating new database with SQL: " << sql.toStdString() << std::endl; // 输出 SQL 语句
+        // 调用 Lexer 的处理方法，传递用户输入的 SQL 语句
+        lexer.handleRawSQL(sql);
+    }
+}
+
+void MainWindow::deleteDatabaseTriggered()
+{
+    bool ok; // 声明一个布尔型变量用于跟踪用户是否确认输入
+
+    // 弹出输入对话框，允许用户输入 SQL 语句
+    QString sql = QInputDialog::getText(this, tr("删除数据库"),  // 对话框标题
+                                        tr("请输入删除数据库的 SQL 语句："), // 提示文本
+                                        QLineEdit::Normal, // 输入框模式设置为普通
+                                        tr("DROP DATABASE db_name;"), // 默认文本示例
+                                        &ok); // 将 ok 的地址传递，以便获取用户的确认状态
+
+    // 检查用户是否点击了确定，并且输入不为空
+    if (ok && !sql.isEmpty()) {
+        //调试语句
+        std::cout << "Deleting database with SQL: " << sql.toStdString() << std::endl; // 输出 SQL 语句
+        // 调用 Lexer 的处理方法，传递用户输入的 SQL 语句
+        lexer.handleRawSQL(sql);
+    }
+}
+
+void MainWindow::startTriggered()
+{
+    //从文本框读取用户输入的sql语句
+    QString sql = ui->textEdit->toPlainText();
+
+    // 确定用户输入不为空
+    if (!sql.isEmpty()) {
+        //调试语句
+        std::cout << "SQL: " << sql.toStdString() << std::endl; // 输出 SQL 语句
+        // 调用 Lexer 的处理方法，传递用户输入的 SQL 语句
+        lexer.handleRawSQL(sql);
+
+        // 清空 QTextEdit 中的内容
+        ui->textEdit->clear();
+    }
 }

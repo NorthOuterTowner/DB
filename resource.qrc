@@ -13,5 +13,7 @@
         <file>res/image/new_db.png</file>
         <file>res/image/new_SQL.png</file>
         <file>res/image/new_table.png</file>
+        <file>res/image/del_db.png</file>
+        <file>res/icons/fatal.png</file>
     </qresource>
 </RCC>
