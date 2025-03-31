@@ -41,6 +41,9 @@
      <height>71</height>
     </rect>
    </property>
+   <property name="styleSheet">
+    <string notr="true">font: 12pt &quot;Sans Serif Collection&quot;;</string>
+   </property>
    <property name="text">
     <string/>
    </property>

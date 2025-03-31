@@ -3,6 +3,7 @@
 #include "dbManager.h"
 #include "usermanage.h"
 #include "databaselistdialog.h"
+#include "admin.h"
 #include <iostream>
 #include <regex>
 #include <map>
@@ -216,7 +217,7 @@ std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
 std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", "INSERT"}, {"status", false} };
 
-    std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(\([\S\s]+\));?$)", ICASE);
+    std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(\([\S\s]+\)))", ICASE);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
@@ -288,7 +289,7 @@ std::map<std::string, SQLVal> Lexer::parseUse(const std::string& sql){
 */
 std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("SELECT")}, {"status", false} };
-    std::regex pattern(R"(SELECT\s+(.*?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.*?))?(?:\s+GROUP\s+BY\s+(.*?))?(?:\s+HAVING\s+(.*?))?(?:\s+ORDER\s+BY\s+(.*?))?(?:\s+LIMIT\s+(.*?))?;$)", ICASE);
+    std::regex pattern(R"(SELECT\s+(.*?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.*?))?(?:\s+GROUP\s+BY\s+(.*?))?(?:\s+HAVING\s+(.*?))?(?:\s+ORDER\s+BY\s+(.*?))?(?:\s+LIMIT\s+(.*?))?)", ICASE);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
@@ -319,20 +320,21 @@ std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
 */
 std::map<std::string, SQLVal> Lexer::parseGrant(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("GRANT")}, {"status", false} };
-    std::regex pattern(R"(GRANT\s+([\w,\s]+)\s+ON\s+(\w+)\s+TO\s+(\w+);$)", ICASE);
+    std::regex pattern(R"(GRANT\s+([\w,\s]+)\s+ON\s+(\w+)\s+TO\s+(\w+))", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
-        result["object"] = std::string(match[2].str());
-        result["user"] = std::string(match[3].str());
-
+        result["object"] = std::string(match[2].str());//db&table
+        result["user"] = std::string(match[3].str());//user
         std::vector<std::string> rightsList;
         std::regex rightsRegex(R"(\w+)");
         std::string matchStr = match[1].str();
         auto rightsBegin = std::sregex_iterator(matchStr.begin(), matchStr.end(), rightsRegex);
         auto rightsEnd = std::sregex_iterator();
         for (auto it = rightsBegin; it != rightsEnd; ++it) {
+            std::string rightStr(it->str());
             rightsList.push_back(it->str());
+            Admin::grant(std::get<std::string>(result["user"]),std::get<std::string>(result["object"]),rightStr);
         }
 
         result["rights"] = rightsList;
@@ -345,7 +347,7 @@ std::map<std::string, SQLVal> Lexer::parseGrant(const std::string& sql) {
 */
 std::map<std::string, SQLVal> Lexer::parseRevoke(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("REVOKE")}, {"status", false} };
-    std::regex pattern(R"(REVOKE\s+([\w,\s]+)\s+ON\s+(\w+)\s+FROM\s+(\w+);$)", ICASE);
+    std::regex pattern(R"(REVOKE\s+([\w,\s]+)\s+ON\s+(\w+)\s+FROM\s+(\w+))", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;

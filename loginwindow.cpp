@@ -4,7 +4,6 @@
 #include "mainwindow.h"
 #include <QMessageBox>
 #include <QDebug>
-#include <QSettings>
 
 loginwindow::loginwindow(QWidget *parent)
     : QMainWindow(parent)
@@ -71,3 +70,21 @@ void loginwindow::on_code_line_textChanged(const QString &arg1)
     user->second = arg1.toStdString();
     ui->code_line->setEchoMode(QLineEdit::Password);
 }
+
+void loginwindow::on_button_register_clicked()
+{
+    UserManage::createUser(user->first,user->second);
+}
+
+
+void loginwindow::on_user_line_textChanged(const QString &arg1)
+{
+    user->first = ui->user_line->text().toStdString();
+}
+
+
+void loginwindow::on_button_exit_clicked()
+{
+    QApplication::exit(0);
+}
+

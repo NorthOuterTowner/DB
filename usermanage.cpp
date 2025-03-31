@@ -17,10 +17,25 @@ std::string UserManage::encryptPassword(const std::string& password) {
     return hash.toHex().toStdString();
 }
 
-void UserManage::createUser(std::string username, std::string password) {
+void UserManage::createUser(std::string& username, std::string& password) {
     // 加密密码
+    std::string filename = "../../res/user.txt";
+    std::ifstream ifile(filename);
+    if (!ifile.is_open()) {
+        std::cerr << "Failed to open file: " << filename << std::endl;
+        return;
+    }
+    std::string line;
+    while (std::getline(ifile, line)) {
+        std::vector<std::string> userInfo = utils::split(line, "\t");
+        if (userInfo.size() < 2) continue;
+        if (userInfo[0] == username) {
+            ifile.close();
+            Wrong::getInstance("User existed.\n")->show();
+            return;
+        }
+    }
     std::string encryptedPwd = encryptPassword(password);
-
     std::ofstream file("../../res/user.txt", std::ios::app);
     if(!file.is_open()) {
         std::cerr << "Failed to open file";
@@ -84,10 +99,8 @@ bool UserManage::findUser(std::string username, std::string password) {
             if (userInfo[1] == encryptedInput) {
                 file.close();
                 return true;
-            } else {
+            }else {
                 Wrong::getInstance("The password input is wrong for this user.")->show();
-                //Wrong* wrong = new Wrong("The password input is wrong for this user.");
-                //wrong->show();
                 file.close();
                 return false;
             }
@@ -96,7 +109,7 @@ bool UserManage::findUser(std::string username, std::string password) {
     file.close();
 
     if (!userExists) {
-        Wrong::getInstance("This user does not exist.")->show();
+        Wrong::getInstance("This user does not exist.\n")->show();
     }
     return false;
     //return true;

@@ -20,6 +20,11 @@ public:
 private slots:
     void on_button_signin_clicked();
     void on_code_line_textChanged(const QString &arg1);
+    void on_button_register_clicked();
+
+    void on_user_line_textChanged(const QString &arg1);
+
+    void on_button_exit_clicked();
 
 private:
     Ui::loginwindow *ui;

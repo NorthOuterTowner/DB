@@ -85,6 +85,9 @@ MainWindow::MainWindow(QWidget *parent)
                              "}");
 
     ui->tableWidget_2->verticalHeader()->setVisible(false);
+    connect(ui->exit_2,&QAction::triggered,this,[this](){
+        QApplication::exit(0);
+    });
 
 }
 
