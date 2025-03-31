@@ -111,7 +111,6 @@ std::shared_ptr<Node> Lexer::parseWhereClause(const std::string& whereStr) {
 std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
 
     std::map<std::string, SQLVal> result = { {"type", "CREATE"}, {"status", false} };
-
     std::regex createPattern(R"(CREATE\s+(DATABASE|TABLE|USER)\s+([\w@]+)\s*(?:\(([\s\S]*?)\))?\s*)", std::regex_constants::icase);
     std::smatch match;
 
@@ -132,6 +131,7 @@ std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
             if (std::holds_alternative<std::string>(result["object_name"])) { // 检查类型
 
                 std::string objectName = std::get<std::string>(result["object_name"]); // 提取
+
 
                 if (dbMgr.createDatabase(objectName)) {
                     result["status"] = true; // 返回状态成功
@@ -159,7 +159,18 @@ std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
                 std::map<std::string, std::string> column;
                 column["name"] = (*it)[1].str();
                 column["type"] = (*it)[2].str();
-                column["constraints"] = (*it)[3].str();
+                std::string constraints = (*it)[3].str();
+
+                //处理外键约束
+                std::regex foreignKeyPattern(R"(FOREIGN KEY\s*\((\w+)\)\s*REFERENCES\s+(\w+)\s*\((\w+)\))");
+                std::smatch foreignKeyMatch;
+                if(std::regex_search(constraints,foreignKeyMatch,foreignKeyPattern)){
+                    column["foreign_key_column"] = foreignKeyMatch[1].str();
+                    column["referenced_table"] = foreignKeyMatch[2].str();
+                    column["referenced_column"]= foreignKeyMatch[3].str();
+                }
+
+                column["constraints"]=constraints;
                 columns.push_back(column);
             }
             result["columns"] = columns; // 将列信息存储到结果中
