@@ -19,9 +19,12 @@ public:
 
 private slots:
     void on_button_signin_clicked();
+    void on_code_line_textChanged(const QString &arg1);
 
 private:
     Ui::loginwindow *ui;
+    std::pair<std::string,std::string>* user;
+    std::string showCode;
 };
 #endif // LOGINWINDOW_H
 
