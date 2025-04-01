@@ -13,7 +13,6 @@
 #include <utility>
 #include <QDebug>
 
-
 Lexer::Lexer(QWidget *parent) : parentWidget(parent) {}
 
 

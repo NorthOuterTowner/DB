@@ -4,6 +4,7 @@
 #include "mainwindow.h"
 #include <QMessageBox>
 #include <QDebug>
+#include <QSettings>
 
 loginwindow::loginwindow(QWidget *parent)
     : QMainWindow(parent)
@@ -11,10 +12,22 @@ loginwindow::loginwindow(QWidget *parent)
     , user(new std::pair<std::string, std::string>("root", "root")) // 初始化成员
 {
     ui->setupUi(this);
+    //load username and password
+    QSettings settings("MyDBMS", "LoginSettings");
+    QString savedUsername = settings.value("username", "").toString();
+    QString savedPassword = settings.value("password", "").toString();
+    bool remember = settings.value("remember", false).toBool();
 
     // 设置初始界面
-    ui->user_line->setText(QString::fromStdString(user->first));
-    ui->code_line->setText(QString::fromStdString(user->second));
+    if(remember && !savedPassword.isEmpty()){
+        ui->user_line->setText(savedUsername);
+        ui->code_line->setText(savedPassword);
+        ui->rememberCheckBox->setChecked(true);
+    }else{
+        ui->user_line->setText(QString::fromStdString(user->first));
+        ui->code_line->setText(QString::fromStdString(user->second));
+    }
+    
     ui->code_line->setEchoMode(QLineEdit::Password); // 密码输入模式
     //ui->code_line->clear(); // 清空初始密码显示
 
@@ -41,6 +54,11 @@ loginwindow::loginwindow(QWidget *parent)
             Qt::SmoothTransformation
             ));
     }
+
+    connect(ui->rememberCheckBox,&QCheckBox::stateChanged,this,[=](int state){
+        QSettings settings("MyDBMS", "LoginSettings");
+        settings.setValue("remember",state == Qt::Checked);
+    });
 }
 
 loginwindow::~loginwindow()
@@ -53,12 +71,24 @@ void loginwindow::on_button_signin_clicked()
 {
     QString username = ui->user_line->text();
     QString password = ui->code_line->text();
-
+    user->first = username.toStdString();
+    user->second = username.toStdString();
     if(username.isEmpty() || password.isEmpty()) {
         return;
     }
 
     if(UserManage::findUser(username.toStdString(), password.toStdString())) {
+        QSettings settings("MyDBMS", "LoginSettings");
+        bool remember = settings.value("remember", false).toBool();
+        
+        if (remember) {
+            settings.setValue("username", username);
+            settings.setValue("password", password);
+        } else {
+            settings.remove("username");
+            settings.remove("password");
+        }
+        
         MainWindow *mainWin = new MainWindow();
         mainWin->show();
         this->close();

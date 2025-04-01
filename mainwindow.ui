@@ -247,7 +247,7 @@ background-color: rgb(134, 134, 134);</string>
   </action>
   <action name="exit_2">
    <property name="text">
-    <string>退出登录</string>
+    <string>退出</string>
    </property>
   </action>
  </widget>

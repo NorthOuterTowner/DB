@@ -22,7 +22,7 @@ void UserManage::createUser(std::string& username, std::string& password) {
     std::string filename = "../../res/user.txt";
     std::ifstream ifile(filename);
     if (!ifile.is_open()) {
-        std::cerr << "Failed to open file: " << filename << std::endl;
+        Wrong::getInstance("Meta information loaded fatal.\n")->show();
         return;
     }
     std::string line;
@@ -38,7 +38,7 @@ void UserManage::createUser(std::string& username, std::string& password) {
     std::string encryptedPwd = encryptPassword(password);
     std::ofstream file("../../res/user.txt", std::ios::app);
     if(!file.is_open()) {
-        std::cerr << "Failed to open file";
+        Wrong::getInstance("Meta information loaded fatal.\n")->show();
         return;
     }
     file << username << "\t" << encryptedPwd << "\n";
@@ -49,7 +49,7 @@ void UserManage::dropUser(std::string username) {
     std::string filename = "../../res/user.txt";
     std::ifstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "Failed to open file: " << filename << std::endl;
+        Wrong::getInstance("Meta information loaded fatal.\n")->show();
         return;
     }
 
@@ -68,7 +68,7 @@ void UserManage::dropUser(std::string username) {
 
     std::ofstream outFile(filename);
     if (!outFile.is_open()) {
-        std::cerr << "Failed to open file for writing: " << filename << std::endl;
+        Wrong::getInstance("Meta information loaded fatal.\n")->show();
         return;
     }
 
@@ -82,7 +82,7 @@ bool UserManage::findUser(std::string username, std::string password) {
     std::string filename = "../../res/user.txt";
     std::ifstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "Failed to open file: " << filename << std::endl;
+        Wrong::getInstance("Meta information loaded fatal.\n")->show();
         return false;
     }
 
@@ -100,7 +100,7 @@ bool UserManage::findUser(std::string username, std::string password) {
                 file.close();
                 return true;
             }else {
-                Wrong::getInstance("The password input is wrong for this user.")->show();
+                Wrong::getInstance("The password input is wrong \nfor this user.")->show();
                 file.close();
                 return false;
             }

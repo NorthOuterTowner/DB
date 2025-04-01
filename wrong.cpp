@@ -21,7 +21,6 @@ Wrong::Wrong(QWidget *parent)
     , ui(new Ui::Wrong)
 {
     ui->setupUi(this);
-
     // 设置默认图标
     QPixmap png(":/res/icons/fatal.png");
     if (!png.isNull()) {
