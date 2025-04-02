@@ -52,7 +52,7 @@ border-color: rgb(0, 0, 0);</string>
      </property>
      <column>
       <property name="text">
-       <string>目录</string>
+       <string>数据库列表</string>
       </property>
       <property name="foreground">
        <brush brushstyle="Dense2Pattern">

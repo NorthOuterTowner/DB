@@ -14,5 +14,6 @@
         <file>res/image/new_SQL.png</file>
         <file>res/image/new_table.png</file>
         <file>res/image/del_db.png</file>
+        <file>res/databases.txt</file>
     </qresource>
 </RCC>
