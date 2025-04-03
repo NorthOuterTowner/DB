@@ -1,7 +1,9 @@
 #include "lexer.h"
 #include "utils.h"
 #include "dbManager.h"
+#include "usermanage.h"
 #include "databaselistdialog.h"
+#include "admin.h"
 #include <iostream>
 #include <regex>
 #include <map>
@@ -9,9 +11,7 @@
 #include <variant>
 #include <memory>
 #include <utility>
-#include <algorithm>
 #include <QDebug>
-
 
 Lexer::Lexer(QWidget *parent) : parentWidget(parent) {}
 
@@ -51,17 +51,6 @@ struct LogicalOp {
 
 #define ICASE std::regex_constants::icase
 
-/*std::string serializeColumns(const std::vector<std::map<std::string, std::string>>& columns) {
-    std::string result;
-    for (const auto& column : columns) {
-        result += column.at("name") + " " + column.at("type");
-        if (!column.at("constraints").empty()) {
-            result += " " + column.at("constraints");
-        }
-        result += ";";
-    }
-    return result;
-}*/
 using SQLVal = std::variant< bool, std::string, std::vector<std::string>,
                             std::vector<std::map<std::string,std::string>>,
                             std::vector<std::vector<std::string>>,std::shared_ptr<Node> >;
@@ -118,29 +107,31 @@ std::shared_ptr<Node> Lexer::parseWhereClause(const std::string& whereStr) {
     return nullptr;
 }
 
-/**Test Finished 
- * Wait for examination
-*/
-
 // 实现解析创建数据库的函数
 std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
 
     std::map<std::string, SQLVal> result = { {"type", "CREATE"}, {"status", false} };
-
-    std::regex createPattern(R"(CREATE\s+(DATABASE|TABLE)\s+(\w+)\s*(?:\(([\s\S]*?)\))?\s*)", std::regex_constants::icase);
+    std::regex createPattern(R"(CREATE\s+(DATABASE|TABLE|USER)\s+([\w@]+)\s*(?:\(([\s\S]*?)\))?\s*)", std::regex_constants::icase);
     std::smatch match;
 
     if (std::regex_search(sql, match, createPattern)) {
         result["status"] = true; // 状态为成功
         result["object_type"] = std::string(match[1].str());
         result["object_name"] = std::string(match[2].str());
-
+        std::vector<std::string> userInfo=utils::split(std::string(std::get<std::string>(result["object_name"])),"@");
+        if(std::get<std::string>(result["object_type"])=="USER"){
+            std::cout<<"TRUE"<<std::endl;
+            std::string name = userInfo[0];
+            std::string pwd = userInfo[1];
+            UserManage::createUser(name,pwd);
+        }
         // 如果创建的是数据库
         if (std::get<std::string>(result["object_type"]) == "DATABASE") {
             // 使用 dbManager 创建数据库
             if (std::holds_alternative<std::string>(result["object_name"])) { // 检查类型
 
                 std::string objectName = std::get<std::string>(result["object_name"]); // 提取
+
 
                 if (dbMgr.createDatabase(objectName)) {
                     result["status"] = true; // 返回状态成功
@@ -168,7 +159,18 @@ std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
                 std::map<std::string, std::string> column;
                 column["name"] = (*it)[1].str();
                 column["type"] = (*it)[2].str();
-                column["constraints"] = (*it)[3].str();
+                std::string constraints = (*it)[3].str();
+
+                //处理外键约束
+                std::regex foreignKeyPattern(R"(FOREIGN KEY\s*\((\w+)\)\s*REFERENCES\s+(\w+)\s*\((\w+)\))");
+                std::smatch foreignKeyMatch;
+                if(std::regex_search(constraints,foreignKeyMatch,foreignKeyPattern)){
+                    column["foreign_key_column"] = foreignKeyMatch[1].str();
+                    column["referenced_table"] = foreignKeyMatch[2].str();
+                    column["referenced_column"]= foreignKeyMatch[3].str();
+                }
+
+                column["constraints"]=constraints;
                 columns.push_back(column);
             }
             result["columns"] = columns; // 将列信息存储到结果中
@@ -180,7 +182,7 @@ std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
 // 实现解析删除数据库的函数
 std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("DROP")}, {"status", false}, {"restrict", true} };
-    std::regex pattern(R"(DROP\s+(DATABASE|TABLE)\s+(\w+)\s*(RESTRICT|CASCADE)*)", std::regex_constants::icase);
+    std::regex pattern(R"(DROP\s+(DATABASE|TABLE|USER)\s+(\w+)\s*(RESTRICT|CASCADE)*)", std::regex_constants::icase);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
@@ -188,6 +190,9 @@ std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
         result["object_type"] = std::string(match[1].str());
         result["object_name"] = std::string(match[2].str());
 
+        if(std::get<std::string>(result["object_type"])=="USER"){
+            UserManage::dropUser(std::get<std::string>(result["object_name"]));
+        }
         // 使用 dbManager 删除数据库
         if (std::get<std::string>(result["object_type"]) == "DATABASE") {
             if (std::holds_alternative<std::string>(result["object_name"])) { // 检查类型
@@ -208,14 +213,10 @@ std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
     return result;
 }
 
-
-/**Test Finished 
- * Wait for examination
-*/
 std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", "INSERT"}, {"status", false} };
 
-    std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(\([\S\s]+\));?$)", ICASE);
+    std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(\([\S\s]+\)))", ICASE);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
@@ -287,7 +288,7 @@ std::map<std::string, SQLVal> Lexer::parseUse(const std::string& sql){
 */
 std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("SELECT")}, {"status", false} };
-    std::regex pattern(R"(SELECT\s+(.*?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.*?))?(?:\s+GROUP\s+BY\s+(.*?))?(?:\s+HAVING\s+(.*?))?(?:\s+ORDER\s+BY\s+(.*?))?(?:\s+LIMIT\s+(.*?))?;$)", ICASE);
+    std::regex pattern(R"(SELECT\s+(.*?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.*?))?(?:\s+GROUP\s+BY\s+(.*?))?(?:\s+HAVING\s+(.*?))?(?:\s+ORDER\s+BY\s+(.*?))?(?:\s+LIMIT\s+(.*?))?)", ICASE);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
@@ -318,20 +319,21 @@ std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
 */
 std::map<std::string, SQLVal> Lexer::parseGrant(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("GRANT")}, {"status", false} };
-    std::regex pattern(R"(GRANT\s+([\w,\s]+)\s+ON\s+(\w+)\s+TO\s+(\w+);$)", ICASE);
+    std::regex pattern(R"(GRANT\s+([\w,\s]+)\s+ON\s+(\w+)\s+TO\s+(\w+))", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
-        result["object"] = std::string(match[2].str());
-        result["user"] = std::string(match[3].str());
-
+        result["object"] = std::string(match[2].str());//db&table
+        result["user"] = std::string(match[3].str());//user
         std::vector<std::string> rightsList;
         std::regex rightsRegex(R"(\w+)");
         std::string matchStr = match[1].str();
         auto rightsBegin = std::sregex_iterator(matchStr.begin(), matchStr.end(), rightsRegex);
         auto rightsEnd = std::sregex_iterator();
         for (auto it = rightsBegin; it != rightsEnd; ++it) {
+            std::string rightStr(it->str());
             rightsList.push_back(it->str());
+            Admin::grant(std::get<std::string>(result["user"]),std::get<std::string>(result["object"]),rightStr);
         }
 
         result["rights"] = rightsList;
@@ -344,7 +346,7 @@ std::map<std::string, SQLVal> Lexer::parseGrant(const std::string& sql) {
 */
 std::map<std::string, SQLVal> Lexer::parseRevoke(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("REVOKE")}, {"status", false} };
-    std::regex pattern(R"(REVOKE\s+([\w,\s]+)\s+ON\s+(\w+)\s+FROM\s+(\w+);$)", ICASE);
+    std::regex pattern(R"(REVOKE\s+([\w,\s]+)\s+ON\s+(\w+)\s+FROM\s+(\w+))", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;

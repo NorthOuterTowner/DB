@@ -35,11 +35,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         dbManager.h
         dbManager.cpp
         databaselistdialog.h databaselistdialog.cpp
-
-
-
-
-
+        usermanage.h usermanage.cpp
+        wrong.h wrong.cpp wrong.ui
+        admin.h admin.cpp
 
     )
 # Define target properties for Android with Qt 6 as:
