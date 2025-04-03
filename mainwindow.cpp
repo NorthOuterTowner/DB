@@ -34,6 +34,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     QIcon clear_icon("://res/image/clear.png");
 
+    //QIcon db_icon("://res/image/db.png");
+
 
     //创建快捷项等同于菜单项
     QAction * new_db = new QAction("新建数据库");
@@ -100,38 +102,40 @@ void MainWindow::onNewDatabaseTriggered()
 {
     bool ok; // 声明一个布尔型变量用于跟踪用户是否确认输入
 
-    // 弹出输入对话框，允许用户输入 SQL 语句
-    QString sql = QInputDialog::getText(this, tr("新建数据库"),  // 对话框标题
-                                        tr("请输入创建数据库的 SQL 语句："), // 提示文本
-                                        QLineEdit::Normal, // 输入框模式设置为普通
-                                        tr("CREATE DATABASE db_name;"), // 默认文本示例
-                                        &ok); // 将 ok 的地址传递，以便获取用户的确认状态
-
+    // 弹出对话框，允许用户输入数据库名称
+    QString dbName = QInputDialog::getText(this, tr("新建数据库"),
+                                           tr("请输入数据库名称："),
+                                           QLineEdit::Normal, "", &ok);
     // 检查用户是否点击了确定，并且输入不为空
-    if (ok && !sql.isEmpty()) {
-        //调试语句
-        std::cout << "Creating new database with SQL: " << sql.toStdString() << std::endl; // 输出 SQL 语句
-        // 调用 Lexer 的处理方法，传递用户输入的 SQL 语句
+
+    if (ok &&!dbName.isEmpty()) {
+        // 构造完整的创建数据库SQL语句
+        QString sql = QString("CREATE DATABASE %1;").arg(dbName);
+        // 调试语句
+        std::cout << "Creating new database with SQL: " << sql.toStdString() << std::endl;
+        // 调用 Lexer 的处理方法，传递构造好的 SQL 语句
         lexer.handleRawSQL(sql);
     }
+
+
 }
 
 void MainWindow::deleteDatabaseTriggered()
 {
     bool ok; // 声明一个布尔型变量用于跟踪用户是否确认输入
 
-    // 弹出输入对话框，允许用户输入 SQL 语句
-    QString sql = QInputDialog::getText(this, tr("删除数据库"),  // 对话框标题
-                                        tr("请输入删除数据库的 SQL 语句："), // 提示文本
-                                        QLineEdit::Normal, // 输入框模式设置为普通
-                                        tr("DROP DATABASE db_name;"), // 默认文本示例
-                                        &ok); // 将 ok 的地址传递，以便获取用户的确认状态
-
+    // 弹出对话框，允许用户输入数据库名称
+    QString dbName = QInputDialog::getText(this, tr("删除数据库"),
+                                           tr("请输入数据库名称："),
+                                           QLineEdit::Normal, "", &ok);
     // 检查用户是否点击了确定，并且输入不为空
-    if (ok && !sql.isEmpty()) {
-        //调试语句
-        std::cout << "Deleting database with SQL: " << sql.toStdString() << std::endl; // 输出 SQL 语句
-        // 调用 Lexer 的处理方法，传递用户输入的 SQL 语句
+
+    if (ok &&!dbName.isEmpty()) {
+        // 构造完整的删除数据库SQL语句
+        QString sql = QString("DROP DATABASE %1;").arg(dbName);
+        // 调试语句
+        std::cout << "Creating new database with SQL: " << sql.toStdString() << std::endl;
+        // 调用 Lexer 的处理方法，传递构造好的 SQL 语句
         lexer.handleRawSQL(sql);
     }
 }
