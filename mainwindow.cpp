@@ -1,16 +1,15 @@
 #include "mainwindow.h"
+#include "highlighttextedit.h"
 #include "./ui_mainwindow.h"
 #include <QInputDialog>
 #include <QLineEdit>
 #include <iostream>
-
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , lexer(this) // 传递 this 指针给 Lexer 构造函数
 {
     ui->setupUi(this);
-
 
     // 调用 lexer 的 setTreeWidget 方法设置 QTreeWidget 指针
     lexer.setTreeWidget(ui->db_list);

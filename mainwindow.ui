@@ -68,7 +68,7 @@ border-color: rgb(0, 0, 0);</string>
       </property>
      </column>
     </widget>
-    <widget class="QTextEdit" name="textEdit">
+    <widget class="HighLightTextEdit" name="textEdit">
      <property name="geometry">
       <rect>
        <x>160</x>
@@ -251,6 +251,13 @@ background-color: rgb(134, 134, 134);</string>
    </property>
   </action>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>HighLightTextEdit</class>
+   <extends>QTextEdit</extends>
+   <header location="global">highlighttextedit.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

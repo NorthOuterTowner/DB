@@ -16,6 +16,9 @@ class loginwindow : public QMainWindow
 public:
     loginwindow(QWidget *parent = nullptr);
     ~loginwindow();
+    inline std::string getUserName(){
+        return this->user->first;
+    }
 
 private slots:
     void on_button_signin_clicked();
