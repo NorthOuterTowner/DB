@@ -7,12 +7,12 @@
 #include <QKeyEvent>
 HighLightTextEdit::HighLightTextEdit(QWidget *parent) : QTextEdit(parent)
 {
-    sqlKeywords << "SELECT" << "FROM" << "WHERE" << "INSERT"
-                << "INTO" << "VALUES" << "UPDATE" << "SET"
-                << "DELETE" << "CREATE" << "TABLE" << "ALTER"
-                << "DROP" << "INDEX" << "VIEW" << "JOIN"
-                << "INNER" << "OUTER" << "LEFT" << "RIGHT"
-                << "DATABASE" << "USER" << "ON"
+    sqlKeywords << "SELECT" << "FROM" << "WHERE" << "INSERT" << "DEFAULT"
+                << "INTO" << "VALUES" << "UPDATE" << "SET" << "REFERENCES"
+                << "DELETE" << "CREATE" << "TABLE" << "ALTER" << "PRIMARY" << "KEY"
+                << "DROP" << "INDEX" << "VIEW" << "JOIN" << "NOT" << "NULL"
+                << "INNER" << "OUTER" << "LEFT" << "RIGHT" << "INT"
+                << "DATABASE" << "USER" << "ON" << "VARCHAR" << "INTEGER"
                 << "GROUP" << "BY" << "ORDER" << "HAVING" << "DISTINCT";
 
     initHighlightRules();

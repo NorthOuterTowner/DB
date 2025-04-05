@@ -12,12 +12,25 @@
 #include "dbManager.h"
 #include "databaselistdialog.h"
 
-// 前向声明
-struct Condition;  // 进行前向声明
-struct LogicalOp;  // 进行前向声明
+struct Node; // 前向声明
 
-// 定义 Node 类型别名
-using Node = std::variant<Condition, LogicalOp>;
+// 然后定义具体结构体
+struct Condition {
+    std::string column;
+    std::string op;
+    std::string value;
+};
+
+struct LogicalOp {
+    std::string op; // "AND" 或 "OR"
+    std::shared_ptr<Node> left;  // 使用指针避免立即需要完整定义
+    std::shared_ptr<Node> right; // 使用指针避免立即需要完整定义
+};
+
+// 最后定义Node类型
+struct Node : std::variant<Condition, LogicalOp> {
+    using variant::variant; // 继承构造函数
+};
 
 // 定义 SQLVal 类型别名
 using SQLVal = std::variant<

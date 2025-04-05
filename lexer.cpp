@@ -32,23 +32,6 @@ void Lexer::setTextEdit(QTextEdit* textEdit) {
     this->textEdit = textEdit;
 }*/
 
-struct Condition;
-struct LogicalOp;
-
-using Node = std::variant<Condition, LogicalOp>;
-
-struct Condition {
-    std::string column;
-    std::string op;
-    std::string value;
-};
-
-struct LogicalOp {
-    std::string op; // "AND" 或 "OR"
-    std::shared_ptr<Node> left;
-    std::shared_ptr<Node> right;
-};
-
 #define ICASE std::regex_constants::icase
 
 using SQLVal = std::variant< bool, std::string, std::vector<std::string>,

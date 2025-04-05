@@ -9,6 +9,10 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 下面这两行提高编译速度指令除单元测试时均可删除
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g0")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1")
+
 # 添加头文件搜索路径
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -68,6 +72,7 @@ else()
 endif()
 
 target_link_libraries(DB PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_include_directories(DB PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(${QT_VERSION} VERSION_LESS 6.1.0)
   set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.DB)
