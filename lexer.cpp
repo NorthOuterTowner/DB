@@ -247,9 +247,6 @@ std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
     return result;
 }
 
-/**Test Finished 
- * Wait for examination
-*/
 std::map<std::string, SQLVal> Lexer::parseUse(const std::string& sql){
     std::map<std::string, SQLVal> result = { {"type", std::string("USE")}, {"status", false} };
     std::regex pattern(R"(USE\s+(\w+))",ICASE);
@@ -297,9 +294,6 @@ std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
     return result;
 }
 
-/**Test Finished 
- * Wait for examination
-*/
 std::map<std::string, SQLVal> Lexer::parseGrant(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("GRANT")}, {"status", false} };
     std::regex pattern(R"(GRANT\s+([\w,\s]+)\s+ON\s+(\w+)\s+TO\s+(\w+))", ICASE);
@@ -324,9 +318,6 @@ std::map<std::string, SQLVal> Lexer::parseGrant(const std::string& sql) {
     return result;
 }
 
-/**Test Finished 
- * Wait for examination
-*/
 std::map<std::string, SQLVal> Lexer::parseRevoke(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("REVOKE")}, {"status", false} };
     std::regex pattern(R"(REVOKE\s+([\w,\s]+)\s+ON\s+(\w+)\s+FROM\s+(\w+))", ICASE);
@@ -379,9 +370,6 @@ std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql) {
     return result;
 }
 
-/**Test Finished 
- * Wait for examination
-*/
 std::map<std::string, SQLVal> Lexer::parseShow(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("SHOW")}, {"status", false} };
     std::regex pattern(R"(SHOW\s+(TABLES|DATABASES)(?:\s+FROM\s+(\w+))?)", std::regex::icase);
@@ -406,9 +394,6 @@ std::map<std::string, SQLVal> Lexer::parseShow(const std::string& sql) {
 }
 
 
-/**Test Finished 
- * Wait for examination
-*/
 std::map<std::string, SQLVal> Lexer::parseUpdate(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("UPDATE")}, {"status", false} };
     std::regex pattern(R"(UPDATE\s+(\w+)\s+SET\s+(\w+)\s*=\s*(\w+)\s+WHERE\s+(.+);$)", ICASE);
@@ -453,7 +438,6 @@ std::map<std::string, SQLVal> Lexer::parseDescribe(const std::string& sql) {
     return result;
 }
 
-// 这里声明 ParseFunc
 using ParseFunc = std::map<std::string, SQLVal>(Lexer::*)(const std::string&);
 
 std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
