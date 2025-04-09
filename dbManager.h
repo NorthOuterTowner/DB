@@ -24,7 +24,6 @@ public:
     void reloadDatabases();//用于初始化db_list
     void setCurrentDatabase(const std::string& dbName); // 新增：设置当前使用的数据库
 
-
 private:
     struct DatabaseInfo {
         int database_id; // 数据库ID

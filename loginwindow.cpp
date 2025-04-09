@@ -106,15 +106,19 @@ void loginwindow::on_button_register_clicked()
     UserManage::createUser(user->first,user->second);
 }
 
-
 void loginwindow::on_user_line_textChanged(const QString &arg1)
 {
     user->first = ui->user_line->text().toStdString();
 }
 
-
 void loginwindow::on_button_exit_clicked()
 {
     QApplication::exit(0);
+}
+
+
+void loginwindow::on_button_register_2_clicked()
+{
+
 }
 

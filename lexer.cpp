@@ -90,15 +90,7 @@ std::shared_ptr<Node> Lexer::parseWhereClause(const std::string& whereStr) {
     return nullptr;
 }
 
-
-
-
-
-
-
-
 //where嵌套时括号优先
-
 std::vector<std::string> Lexer::tokenize(const std::string& str) {
     std::vector<std::string> tokens;
     std::regex token_pattern(R"(\s*([()])\s*|\s*(AND|OR|=|<>|<|>|<=|>=)\s*|\s*([\w\.']+)\s*)", std::regex::icase);
@@ -117,8 +109,6 @@ std::vector<std::string> Lexer::tokenize(const std::string& str) {
     }
     return tokens;
 }
-
-
 
 std::shared_ptr<Node> Lexer::parsWhereClause(const std::string& whereClause) {
     std::vector<std::string> tokens = tokenize(whereClause);
@@ -182,17 +172,6 @@ std::shared_ptr<Node> Lexer::parseFactor(std::vector<std::string>& tokens, int& 
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
 // 实现解析创建数据库的函数
 std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
 
@@ -218,17 +197,12 @@ std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
 
                 std::string objectName = std::get<std::string>(result["object_name"]); // 提取
 
-
                 if (dbMgr.createDatabase(objectName)) {
                     result["status"] = true; // 返回状态成功
-                    //调试
                     std::cout << "Database created successfully." << std::endl;
-
                 } else {
                     result["status"] = false; // 返回状态失败
-                    //调试
                     std::cout << "Database created failed." << std::endl;
-
                 }
             }
         } else if (std::get<std::string>(result["object_type"]) == "TABLE" && match[3].matched) {
@@ -570,9 +544,7 @@ std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
 void Lexer::handleRawSQL(QString rawSql){
     std::vector<std::string> sqls=utils::split(rawSql.toStdString(),";");
     for(std::string sql:sqls){
-
         std::map<std::string,SQLVal> result = parseSQL(sql);
-
         std::cout << "Type: " << std::get<std::string>(result["type"]) << ", Status: " << std::get<bool>(result["status"]) << std::endl;
     }
 }
