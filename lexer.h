@@ -77,6 +77,8 @@ public:
 
 
 
+    std::map<std::string, SQLVal> parsUpdate(const std::string& sql);
+
 
 private:
 

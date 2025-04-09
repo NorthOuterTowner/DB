@@ -543,6 +543,63 @@ std::map<std::string, SQLVal> Lexer::parseUpdate(const std::string& sql) {
     return result;
 }
 
+
+
+
+//UPDATE tb SET name='hh',age=8 WHERE id =1;
+std::map<std::string, SQLVal> Lexer::parsUpdate(const std::string& sql) {
+    std::map<std::string, SQLVal> result = { {"type", std::string("UPDATE")}, {"status", false} };
+
+    std::regex pattern(R"(UPDATE\s+(\w+)\s+SET\s+(.+?)\s+WHERE\s+(.+);?$)", ICASE);
+    std::smatch match;
+
+    if (std::regex_search(sql, match, pattern)) {
+        result["status"] = true;
+        result["table"] = match[1].str();
+
+        std::string assignments = match[2].str();
+        std::string condition = match[3].str();
+        result["condition"] = condition;
+
+        // 解析 SET 语句
+        std::vector<std::map<std::string, std::string>> updates;
+        std::regex assignmentPattern(R"(\s*(\w+)\s*=\s*('[^']*'|\"[^\"]*\"|[\w\.()]+)\s*,?)");
+        auto begin = std::sregex_iterator(assignments.begin(), assignments.end(), assignmentPattern);
+        auto end = std::sregex_iterator();
+
+        for (auto it = begin; it != end; ++it) {
+            std::map<std::string, std::string> entry;
+            entry["column"] = utils::strip((*it)[1].str());
+            entry["value"] = utils::strip((*it)[2].str());
+            updates.push_back(entry);
+        }
+        result["updates"] = updates;
+
+        // 解析 WHERE 条件
+        std::vector<std::map<std::string, std::string>> conditions;
+        std::regex wherePattern(R"(\s*(\w+)\s*(=|>|<|>=|<=|!=|LIKE)\s*('[^']*'|\"[^\"]*\"|[\w]+)\s*)");
+        auto whereBegin = std::sregex_iterator(condition.begin(), condition.end(), wherePattern);
+        auto whereEnd = std::sregex_iterator();
+
+        for (auto it = whereBegin; it != whereEnd; ++it) {
+            std::map<std::string, std::string> condEntry;
+            condEntry["column"] = utils::strip((*it)[1].str());
+            condEntry["operator"] = utils::strip((*it)[2].str());
+            condEntry["value"] = utils::strip((*it)[3].str());
+            conditions.push_back(condEntry);
+        }
+
+        result["conditions"] = conditions;
+    }
+
+    return result;
+}
+
+
+
+
+
+
 /**Test Finished 
  * Wait for examination
  * TODO:Need an extra function to parse the condition
