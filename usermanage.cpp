@@ -3,41 +3,72 @@
 #include <iostream>
 #include <fstream>
 #include "wrong.h"
+#include <QCryptographicHash>
+#include <QString>
 
 UserManage::UserManage() {}
-void UserManage::createUser(std::string username,std::string password){
-    std::ofstream file("../../res/user.txt",std::ios::app);
-    if(!file.is_open()){
-        std::cerr << "Failed to open file";
+
+// 密码加密函数
+std::string UserManage::encryptPassword(const std::string& password) {
+    QByteArray hash = QCryptographicHash::hash(
+        QByteArray::fromStdString(password),
+        QCryptographicHash::Sha256
+        );
+    return hash.toHex().toStdString();
+}
+
+void UserManage::createUser(std::string& username, std::string& password) {
+    // 加密密码
+    std::string filename = "../../res/user.txt";
+    std::ifstream ifile(filename);
+    if (!ifile.is_open()) {
+        Wrong::getInstance("Meta information loaded fatal.\n")->show();
         return;
     }
-    file<<username<<"\t"<<password<<"\n";
+    std::string line;
+    while (std::getline(ifile, line)) {
+        std::vector<std::string> userInfo = utils::split(line, "\t");
+        if (userInfo.size() < 2) continue;
+        if (userInfo[0] == username) {
+            ifile.close();
+            Wrong::getInstance("User existed.\n")->show();
+            return;
+        }
+    }
+    std::string encryptedPwd = encryptPassword(password);
+    std::ofstream file("../../res/user.txt", std::ios::app);
+    if(!file.is_open()) {
+        Wrong::getInstance("Meta information loaded fatal.\n")->show();
+        return;
+    }
+    file << username << "\t" << encryptedPwd << "\n";
     file.close();
 }
 
-void UserManage::dropUser(std::string username){
-    std::string filename="../../res/user.txt";
+void UserManage::dropUser(std::string username) {
+    std::string filename = "../../res/user.txt";
     std::ifstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "Failed to open file: " << filename << std::endl;
+        Wrong::getInstance("Meta information loaded fatal.\n")->show();
         return;
     }
 
     std::vector<std::string> lines;
     std::string line;
 
-    // 读取所有行并过滤
     while (std::getline(file, line)) {
-        if (line.find(username) == std::string::npos) {
+        std::vector<std::string> userInfo = utils::split(line, "\t");
+        if (userInfo.empty()) continue;
+
+        if (userInfo[0] != username) {
             lines.push_back(line);
         }
     }
     file.close();
 
-    // 重新写回文件
     std::ofstream outFile(filename);
     if (!outFile.is_open()) {
-        std::cerr << "Failed to open file for writing: " << filename << std::endl;
+        Wrong::getInstance("Meta information loaded fatal.\n")->show();
         return;
     }
 
@@ -47,30 +78,39 @@ void UserManage::dropUser(std::string username){
     outFile.close();
 }
 
-bool UserManage::findUser(std::string username,std::string password){
-    bool res = false;
-    std::string filename="../../res/user.txt";
+bool UserManage::findUser(std::string username, std::string password) {
+    std::string filename = "../../res/user.txt";
     std::ifstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "Failed to open file: " << filename << std::endl;
-        return res;
+        Wrong::getInstance("Meta information loaded fatal.\n")->show();
+        return false;
     }
 
-    std::vector<std::string> lines;
     std::string line;
+    bool userExists = false;
+    std::string encryptedInput = encryptPassword(password);
 
     while (std::getline(file, line)) {
-        std::vector<std::string> userInfo = utils::split(line,"\t");
-        if (userInfo[0]==username && userInfo[1]==password){
-            res = true;
-        }else if(userInfo[0]==username){
-            Wrong* wrong = new Wrong("The password input is wrong for this user.");
-            wrong->show();
-        }else{
-            Wrong* wrong = new Wrong("This user is not exist or not found.");
-            wrong->show();
+        std::vector<std::string> userInfo = utils::split(line, "\t");
+        if (userInfo.size() < 2) continue;
+
+        if (userInfo[0] == username) {
+            userExists = true;
+            if (userInfo[1] == encryptedInput) {
+                file.close();
+                return true;
+            }else {
+                Wrong::getInstance("The password input is wrong \nfor this user.")->show();
+                file.close();
+                return false;
+            }
         }
     }
     file.close();
-    return res;
+
+    if (!userExists) {
+        Wrong::getInstance("This user does not exist.\n")->show();
+    }
+    return false;
+    //return true;
 }
