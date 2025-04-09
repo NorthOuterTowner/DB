@@ -484,7 +484,7 @@ std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql) {
         std::string columnsStr = std::string(match[3].str());
 
         std::vector<std::map<std::string, std::string>> columns;
-        std::regex columnPattern(R"((\w+)\s+([\w\(\)]+)\s*([^,]*))");
+        std::regex columnPattern(R"(\s*(\w+)\s+([A-Z]+(?:\s*\(\s*\d+\s*(?:,\s*\d+)?\s*\))?)\s*([^,;]*)\s*(?:,|$))");//支持varchar（20）
         auto columnBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), columnPattern);
         auto columnEnd = std::sregex_iterator();
         for (std::sregex_iterator it = columnBegin; it != columnEnd; ++it) {
