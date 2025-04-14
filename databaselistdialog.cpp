@@ -16,5 +16,5 @@ DatabaseListDialog::DatabaseListDialog(const QStringList& databaseNames, QWidget
 
 DatabaseListDialog::~DatabaseListDialog()
 {
-    // 析构函数
+
 }

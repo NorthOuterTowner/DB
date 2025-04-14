@@ -14,7 +14,8 @@ HighLightTextEdit::HighLightTextEdit(QWidget *parent) : QTextEdit(parent)
                 << "INNER" << "OUTER" << "LEFT" << "RIGHT" << "INT" << "DISTINCT"
                 << "DATABASE" << "USER" << "ON" << "VARCHAR" << "INTEGER" << "MIN"
                 << "GROUP" << "BY" << "ORDER" << "HAVING" << "DISTINCT" << "MAX"
-                << "COUNT" << "AVG"<<"START"<<"COMMIT"<<"TRANSACTION"<<"ROLLBACK";
+                << "AND" << "OR"<<"START"<<"COMMIT"<<"TRANSACTION"<<"ROLLBACK";
+
 
     initHighlightRules();
 

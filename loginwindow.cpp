@@ -5,6 +5,9 @@
 #include <QMessageBox>
 #include <QDebug>
 #include <QSettings>
+#include "highsettings.h"
+#include "server.h"
+#include "iostream"
 
 loginwindow::loginwindow(QWidget *parent)
     : QMainWindow(parent)
@@ -106,15 +109,20 @@ void loginwindow::on_button_register_clicked()
     UserManage::createUser(user->first,user->second);
 }
 
-
 void loginwindow::on_user_line_textChanged(const QString &arg1)
 {
     user->first = ui->user_line->text().toStdString();
 }
 
-
 void loginwindow::on_button_exit_clicked()
 {
     QApplication::exit(0);
+}
+
+
+void loginwindow::on_button_register_2_clicked()
+{
+    HighSettings *h = new HighSettings();
+    h->show();
 }
 

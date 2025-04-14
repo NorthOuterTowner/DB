@@ -12,6 +12,7 @@
 #include <memory>
 #include <utility>
 #include <QDebug>
+#include <server.h>
 
 Lexer::Lexer(QWidget *parent) : parentWidget(parent),affair("undo.txt") {}
 
@@ -90,6 +91,88 @@ std::shared_ptr<Node> Lexer::parseWhereClause(const std::string& whereStr) {
     return nullptr;
 }
 
+//where嵌套时括号优先
+std::vector<std::string> Lexer::tokenize(const std::string& str) {
+    std::vector<std::string> tokens;
+    std::regex token_pattern(R"(\s*([()])\s*|\s*(AND|OR|=|<>|<|>|<=|>=)\s*|\s*([\w\.']+)\s*)", std::regex::icase);
+    auto begin = std::sregex_iterator(str.begin(), str.end(), token_pattern);
+    auto end = std::sregex_iterator();
+
+    for (auto it = begin; it != end; ++it) {
+        for (int i = 1; i < it->size(); ++i) {
+            if ((*it)[i].matched) {
+                std::string token = (*it)[i].str();
+                std::transform(token.begin(), token.end(), token.begin(), ::toupper);
+                tokens.push_back(token);
+                break;
+            }
+        }
+    }
+    return tokens;
+}
+
+std::shared_ptr<Node> Lexer::parsWhereClause(const std::string& whereClause) {
+    std::vector<std::string> tokens = tokenize(whereClause);
+    int pos = 0;
+    return parsExpression(tokens, pos);
+}
+
+
+std::shared_ptr<Node> Lexer::parsLogicalOp(const std::string& whereClause) {
+    std::vector<std::string> tokens = tokenize(whereClause);
+    int pos = 0;
+    return parsExpression(tokens, pos);
+}
+
+
+// 处理 OR
+std::shared_ptr<Node> Lexer::parsExpression(std::vector<std::string>& tokens, int& pos) {
+    auto node = parseTerm(tokens, pos);
+    while (pos < tokens.size() && tokens[pos] == "OR") {
+        std::string op = tokens[pos++];
+        auto right = parseTerm(tokens, pos);
+        node = std::make_shared<Node>(LogicalOp{op, node, right});
+    }
+    return node;
+}
+
+// 添加这两个函数声明
+//std::shared_ptr<Node> Lexer:: parseTerm(std::vector<std::string>& tokens, int& pos);
+//std::shared_ptr<Node> parseFactor(std::vector<std::string>& tokens, int& pos);
+
+
+// 处理 AND
+std::shared_ptr<Node> Lexer::parseTerm(std::vector<std::string>& tokens, int& pos) {
+    auto node = parseFactor(tokens, pos);
+    while (pos < tokens.size() && tokens[pos] == "AND") {
+        std::string op = tokens[pos++];
+        auto right = parseFactor(tokens, pos);
+        node = std::make_shared<Node>(LogicalOp{op, node, right});
+    }
+    return node;
+}
+
+// 处理括号或基本条件
+std::shared_ptr<Node> Lexer::parseFactor(std::vector<std::string>& tokens, int& pos) {
+    if (tokens[pos] == "(") {
+        ++pos; // 跳过 (
+        auto node = this->parsExpression(tokens, pos);
+        if (tokens[pos] != ")") {
+            throw std::runtime_error("Missing closing parenthesis");
+        }
+        ++pos; // 跳过 )
+        return node;
+    } else {
+        // 是一个基本条件：col op val
+        if (pos + 2 >= tokens.size()) {
+            throw std::runtime_error("Invalid condition in WHERE clause");
+        }
+        Condition cond{tokens[pos], tokens[pos + 1], tokens[pos + 2]};
+        pos += 3;
+        return std::make_shared<Node>(cond);
+    }
+}
+
 // 实现解析创建数据库的函数
 std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
 
@@ -115,23 +198,18 @@ std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
 
                 std::string objectName = std::get<std::string>(result["object_name"]); // 提取
 
-
                 if (dbMgr.createDatabase(objectName)) {
                     result["status"] = true; // 返回状态成功
-                    //调试
                     std::cout << "Database created successfully." << std::endl;
-
                 } else {
                     result["status"] = false; // 返回状态失败
-                    //调试
                     std::cout << "Database created failed." << std::endl;
-
                 }
             }
         } else if (std::get<std::string>(result["object_type"]) == "TABLE" && match[3].matched) {
             // 创建表的逻辑
             std::string columnsStr = match[3]; // 获取列定义字符串
-            std::regex columnPattern(R"(\s*(\w+)\s+(\w+)\s*([\s\S]*?)\s*(?:,|$))");
+            std::regex columnPattern(R"(\s*(\w+)\s+(\w+(?:\s*\([^)]*\))?)\s*(.*?)(?:,|$))");
             std::smatch columnMatch;
             std::vector<std::map<std::string, std::string>> columns;
 
@@ -515,10 +593,14 @@ std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
 void Lexer::handleRawSQL(QString rawSql){
     std::vector<std::string> sqls=utils::split(rawSql.toStdString(),";");
     for(std::string sql:sqls){
-
         std::map<std::string,SQLVal> result = parseSQL(sql);
-
-        std::cout << "Type: " << std::get<std::string>(result["type"]) << ", Status: " << std::get<bool>(result["status"]) << std::endl;
+        std::string type = std::get<std::string>(result["type"]);
+        bool status = std::get<bool>(result["status"]);
+        std::cout << "Type: " << type << ", Status: " << status << std::endl;
+        if(status){
+            Server * server = Server::getInstance();
+            server->sendMessageToServer(QString::fromStdString(sql));
+        }
     }
 }
 

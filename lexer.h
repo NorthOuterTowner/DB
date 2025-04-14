@@ -30,7 +30,7 @@ struct LogicalOp {
 
 // 最后定义Node类型
 struct Node : std::variant<Condition, LogicalOp> {
-    using variant::variant; // 继承构造函数
+    using variant::variant;
 };
 
 // 定义 SQLVal 类型别名
@@ -77,6 +77,15 @@ public:
     std::map<std::string, SQLVal> parseCommit(const std::string& sql);
     std::map<std::string, SQLVal> parseRollback(const std::string& sql);
     //void setTextEdit(QTextEdit* textEdit); // 用于SHOW DATABASES命令
+    //where嵌套时括号优先
+    std::vector<std::string> tokenize(const std::string& str);
+    std::shared_ptr<Node> parsWhereClause(const std::string& whereClause);
+    std::shared_ptr<Node> parsExpression(std::vector<std::string>& tokens, int& pos);      // 处理 OR
+    std::shared_ptr<Node> parseFactor();          // 括号 or condition
+    std::shared_ptr<Node> parseCondition();       // 基础条件表达式，如 col = val
+    std::shared_ptr<Node> parseTerm(std::vector<std::string>& tokens, int& pos);
+    std::shared_ptr<Node> parseFactor(std::vector<std::string>& tokens, int& pos);
+    std::shared_ptr<Node> parsLogicalOp(const std::string& whereClause);
 
 private:
     dbManager dbMgr; // 数据库管理器
