@@ -12,6 +12,7 @@
 #include <memory>
 #include <utility>
 #include <QDebug>
+#include <server.h>
 
 Lexer::Lexer(QWidget *parent) : parentWidget(parent) {}
 
@@ -545,7 +546,13 @@ void Lexer::handleRawSQL(QString rawSql){
     std::vector<std::string> sqls=utils::split(rawSql.toStdString(),";");
     for(std::string sql:sqls){
         std::map<std::string,SQLVal> result = parseSQL(sql);
-        std::cout << "Type: " << std::get<std::string>(result["type"]) << ", Status: " << std::get<bool>(result["status"]) << std::endl;
+        std::string type = std::get<std::string>(result["type"]);
+        bool status = std::get<bool>(result["status"]);
+        std::cout << "Type: " << type << ", Status: " << status << std::endl;
+        if(status){
+            Server * server = Server::getInstance();
+            server->sendMessageToServer(QString::fromStdString(sql));
+        }
     }
 }
 

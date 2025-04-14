@@ -1,5 +1,7 @@
 #include "highsettings.h"
 #include "ui_highsettings.h"
+#include "server.h"
+#include <iostream>
 
 HighSettings::HighSettings(QWidget *parent)
     : QDialog(parent)
@@ -23,5 +25,15 @@ std::string HighSettings::getPort(){
 
 void HighSettings::on_buttonBox_accepted()
 {
+    std::string ip = this->getIP();
+    int port = std::stoi(this->getPort());
+    Server::getInstance()->setIP(ip);
+    Server::getInstance()->setPort(port);
     this->hide();
 }
+
+void HighSettings::on_buttonBox_rejected()
+{
+    this->hide();
+}
+

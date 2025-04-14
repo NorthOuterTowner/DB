@@ -5,6 +5,9 @@
 #include <QMessageBox>
 #include <QDebug>
 #include <QSettings>
+#include "highsettings.h"
+#include "server.h"
+#include "iostream"
 
 loginwindow::loginwindow(QWidget *parent)
     : QMainWindow(parent)
@@ -119,6 +122,7 @@ void loginwindow::on_button_exit_clicked()
 
 void loginwindow::on_button_register_2_clicked()
 {
-
+    HighSettings *h = new HighSettings();
+    h->show();
 }
 
