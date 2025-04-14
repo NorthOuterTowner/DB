@@ -14,7 +14,7 @@
 #include <QDebug>
 #include <server.h>
 
-Lexer::Lexer(QWidget *parent) : parentWidget(parent) {}
+Lexer::Lexer(QWidget *parent) : parentWidget(parent),affair("undo.txt") {}
 
 
 // 实现设置 QTreeWidget 指针的方法，传递给 dbManager
@@ -275,6 +275,9 @@ std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
 }
 
 std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
+    if(affair.isrunning){
+        affair.writeToUndo(QString::fromStdString(sql));
+    }
     std::map<std::string, SQLVal> result = { {"type", "INSERT"}, {"status", false} };
 
     std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(\([\S\s]+\)))", ICASE);
@@ -473,6 +476,10 @@ std::map<std::string, SQLVal> Lexer::parseShow(const std::string& sql) {
 
 
 std::map<std::string, SQLVal> Lexer::parseUpdate(const std::string& sql) {
+
+    if(affair.isrunning){
+        affair.writeToUndo(QString::fromStdString(sql));
+    }
     std::map<std::string, SQLVal> result = { {"type", std::string("UPDATE")}, {"status", false} };
     std::regex pattern(R"(UPDATE\s+(\w+)\s+SET\s+(\w+)\s*=\s*(\w+)\s+WHERE\s+(.+);$)", ICASE);
     std::smatch match;
@@ -491,6 +498,9 @@ std::map<std::string, SQLVal> Lexer::parseUpdate(const std::string& sql) {
  * TODO:Need an extra function to parse the condition
 */
 std::map<std::string, SQLVal> Lexer::parseDelete(const std::string& sql) {
+    if(affair.isrunning){
+        affair.writeToUndo(QString::fromStdString(sql));
+    }
     std::map<std::string, SQLVal> result = { {"type", std::string("DELETE")}, {"status", false} };
     std::regex pattern(R"(DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?;$)", ICASE);
     std::smatch match;
@@ -516,6 +526,41 @@ std::map<std::string, SQLVal> Lexer::parseDescribe(const std::string& sql) {
     return result;
 }
 
+std::map<std::string, SQLVal> Lexer::parseStart(const std::string& sql){
+
+    affair.isrunning=true;
+    affair.start();
+
+    std::map<std::string, SQLVal> result = { {"type", std::string("START")}, {"status", false} };
+    std::regex pattern(R"(START\s+(\w+)(?:\s+(\w+))?;$)", ICASE);
+    std::smatch match;
+    if (std::regex_search(sql, match, pattern)) {
+        result["status"] = true;
+    }
+    return result;
+}
+std::map<std::string, SQLVal> Lexer::parseRollback(const std::string& sql){
+
+    std::map<std::string, SQLVal> result = { {"type", std::string("ROLLBACK")}, {"status", false} };
+    std::regex pattern(R"(ROLLBACK\s+(\w+)(?:\s+(\w+))?;$)", ICASE);
+    std::smatch match;
+    if (std::regex_search(sql, match, pattern)) {
+        result["status"] = true;
+    }
+    return result;
+}
+std::map<std::string, SQLVal> Lexer::parseCommit(const std::string& sql){
+
+
+    std::map<std::string, SQLVal> result = { {"type", std::string("COMMIT")}, {"status", false} };
+    std::regex pattern(R"(COMMIT\s+(\w+)(?:\s+(\w+))?;$)", ICASE);
+    std::smatch match;
+    if (std::regex_search(sql, match, pattern)) {
+        result["status"] = true;
+    }
+    return result;
+}
+
 using ParseFunc = std::map<std::string, SQLVal>(Lexer::*)(const std::string&);
 
 std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
@@ -531,7 +576,10 @@ std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
         {std::regex(R"(^SHOW\s)", ICASE), &Lexer::parseShow},
         {std::regex(R"(^UPDATE\s)", ICASE), &Lexer::parseUpdate},
         {std::regex(R"(^DELETE\s)", ICASE), &Lexer::parseDelete},
-        {std::regex(R"(^DESCRIBE\s)", ICASE), &Lexer::parseDescribe}
+        {std::regex(R"(^DESCRIBE\s)", ICASE), &Lexer::parseDescribe},
+        {std::regex(R"(^COMMIT\s)", ICASE), &Lexer::parseCommit},
+        {std::regex(R"(^ROLLBACK\s)", ICASE), &Lexer::parseRollback},
+        {std::regex(R"(^START\s)", ICASE), &Lexer::parseStart}
     };
 
     for (const auto& [pattern, func] : patterns) {

@@ -54,8 +54,12 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(DB
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+        
+        index.h index.cpp
+        affair.h affair.cpp
         server.h server.cpp
         highsettings.h highsettings.cpp highsettings.ui
+
     )
 
     qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

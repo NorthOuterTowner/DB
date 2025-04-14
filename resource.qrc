@@ -16,5 +16,6 @@
         <file>res/image/del_db.png</file>
         <file>res/databases.txt</file>
         <file>res/icons/fatal.png</file>
+        <file>res/undo.txt</file>
     </qresource>
 </RCC>

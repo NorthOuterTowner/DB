@@ -78,7 +78,8 @@ border-color: rgb(0, 0, 0);</string>
       </rect>
      </property>
      <property name="styleSheet">
-      <string notr="true">border-color: rgb(0, 0, 0);</string>
+      <string notr="true">border-color: rgb(0, 0, 0);
+color: rgb(0, 0, 0);</string>
      </property>
     </widget>
     <widget class="QTableWidget" name="tableWidget_2">
@@ -190,7 +191,7 @@ color: rgb(0, 0, 0);</string>
      <x>0</x>
      <y>0</y>
      <width>800</width>
-     <height>25</height>
+     <height>17</height>
     </rect>
    </property>
    <property name="styleSheet">

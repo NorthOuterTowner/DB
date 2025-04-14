@@ -11,6 +11,7 @@
 #include <QWidget>
 #include "dbManager.h"
 #include "databaselistdialog.h"
+#include "affair.h"
 
 struct Node; // 前向声明
 
@@ -72,6 +73,9 @@ public:
     std::map<std::string, SQLVal> parseDelete(const std::string& sql);
     std::map<std::string, SQLVal> parseDescribe(const std::string& sql);
     std::map<std::string, SQLVal> parseSQL(const std::string& sql);
+    std::map<std::string, SQLVal> parseStart(const std::string& sql);
+    std::map<std::string, SQLVal> parseCommit(const std::string& sql);
+    std::map<std::string, SQLVal> parseRollback(const std::string& sql);
     //void setTextEdit(QTextEdit* textEdit); // 用于SHOW DATABASES命令
     //where嵌套时括号优先
     std::vector<std::string> tokenize(const std::string& str);
@@ -89,6 +93,7 @@ private:
     //QTextEdit* textEdit; // 用于SHOW DATABASES命令
     QWidget *parentWidget; // 新增成员变量，用于保存父窗口指针
     std::string currentDatabase; // 新增：记录当前使用的数据库名称
+    Affair affair;//事务管理
 };
 
 #endif // LEXER_H
