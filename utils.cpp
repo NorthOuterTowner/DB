@@ -18,6 +18,7 @@ std::vector<std::string> utils::split(const std::string& str, const std::string&
         start = end + delimiter.length();
         end = str.find(delimiter, start);
     }
+
     std::string token = str.substr(start);
     if (!token.empty()) {
         tokens.push_back(token);
