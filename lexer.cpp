@@ -16,8 +16,6 @@
 
 Lexer::Lexer(QWidget *parent) : parentWidget(parent),affair("undo.txt") {}
 
-
-// 实现设置 QTreeWidget 指针的方法，传递给 dbManager
 void Lexer::setTreeWidget(QTreeWidget* treeWidget) {
     this->treeWidget = treeWidget;
     dbMgr.setTreeWidget(treeWidget);
@@ -502,7 +500,7 @@ std::map<std::string, SQLVal> Lexer::parseDelete(const std::string& sql) {
         affair.writeToUndo(QString::fromStdString(sql));
     }
     std::map<std::string, SQLVal> result = { {"type", std::string("DELETE")}, {"status", false} };
-    std::regex pattern(R"(DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?;$)", ICASE);
+    std::regex pattern(R"(DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?)", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
@@ -516,7 +514,7 @@ std::map<std::string, SQLVal> Lexer::parseDelete(const std::string& sql) {
 */
 std::map<std::string, SQLVal> Lexer::parseDescribe(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("DESCRIBE")}, {"status", false} };
-    std::regex pattern(R"(DESCRIBE\s+(\w+)(?:\s+(\w+))?;$)", ICASE);
+    std::regex pattern(R"(DESCRIBE\s+(\w+)(?:\s+(\w+))?)", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
@@ -532,7 +530,7 @@ std::map<std::string, SQLVal> Lexer::parseStart(const std::string& sql){
     affair.start();
 
     std::map<std::string, SQLVal> result = { {"type", std::string("START")}, {"status", false} };
-    std::regex pattern(R"(START\s+(\w+)(?:\s+(\w+))?;$)", ICASE);
+    std::regex pattern(R"(START\s+(\w+)(?:\s+(\w+))?)", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
@@ -542,7 +540,7 @@ std::map<std::string, SQLVal> Lexer::parseStart(const std::string& sql){
 std::map<std::string, SQLVal> Lexer::parseRollback(const std::string& sql){
 
     std::map<std::string, SQLVal> result = { {"type", std::string("ROLLBACK")}, {"status", false} };
-    std::regex pattern(R"(ROLLBACK\s+(\w+)(?:\s+(\w+))?;$)", ICASE);
+    std::regex pattern(R"(ROLLBACK\s+(\w+)(?:\s+(\w+))?)", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
@@ -553,7 +551,7 @@ std::map<std::string, SQLVal> Lexer::parseCommit(const std::string& sql){
 
 
     std::map<std::string, SQLVal> result = { {"type", std::string("COMMIT")}, {"status", false} };
-    std::regex pattern(R"(COMMIT\s+(\w+)(?:\s+(\w+))?;$)", ICASE);
+    std::regex pattern(R"(COMMIT\s+(\w+)(?:\s+(\w+))?)", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
