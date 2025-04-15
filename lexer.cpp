@@ -427,7 +427,7 @@ std::map<std::string, SQLVal> Lexer::parseRevoke(const std::string& sql) {
 */
 std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("ALTER")}, {"status", false} } ;
-    std::regex pattern(R"(ALTER\s+TABLE\s+(\w+)\s+(ADD|MODIFY|DROP)\s+([\s\S]*);$)", ICASE);
+    std::regex pattern(R"(ALTER\s+TABLE\s+(\w+)\s+(ADD|MODIFY|DROP)\s+([\s\S]*))", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
@@ -481,7 +481,7 @@ std::map<std::string, SQLVal> Lexer::parseUpdate(const std::string& sql) {
         affair.writeToUndo(QString::fromStdString(sql));
     }
     std::map<std::string, SQLVal> result = { {"type", std::string("UPDATE")}, {"status", false} };
-    std::regex pattern(R"(UPDATE\s+(\w+)\s+SET\s+(\w+)\s*=\s*(\w+)\s+WHERE\s+(.+);$)", ICASE);
+    std::regex pattern(R"(UPDATE\s+(\w+)\s+SET\s+(\w+)\s*=\s*(\w+)\s+WHERE\s+(.+))", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
