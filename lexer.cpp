@@ -424,28 +424,43 @@ std::map<std::string, SQLVal> Lexer::parseRevoke(const std::string& sql) {
  * Wait for examination
 */
 std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql) {
-    std::map<std::string, SQLVal> result = { {"type", std::string("ALTER")}, {"status", false} } ;
+    std::map<std::string, SQLVal> result = { {"type", "ALTER"}, {"status", false} };
+
     std::regex pattern(R"(ALTER\s+TABLE\s+(\w+)\s+(ADD|MODIFY|DROP)\s+([\s\S]*))", ICASE);
     std::smatch match;
-    if (std::regex_search(sql, match, pattern)) {
-        result["status"] = true;
-        result["table"] = std::string(match[1].str());
-        result["action"] = std::string(match[2].str());
-        std::string columnsStr = std::string(match[3].str());
 
-        std::vector<std::map<std::string, std::string>> columns;
-        std::regex columnPattern(R"((\w+)\s+([\w\(\)]+)\s*([^,]*))");
-        auto columnBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), columnPattern);
-        auto columnEnd = std::sregex_iterator();
-        for (std::sregex_iterator it = columnBegin; it != columnEnd; ++it) {
+    if (!std::regex_search(sql, match, pattern)) return result;
+
+    result["status"] = true;
+    result["table"] = match[1].str();
+    std::string action = match[2].str();
+    result["action"] = action;
+    std::string columnsStr = utils::strip(match[3].str());
+
+    std::regex columnKeyword(R"(^COLUMN\s+)", std::regex_constants::icase);
+    columnsStr = std::regex_replace(columnsStr, columnKeyword, "");
+
+    std::vector<std::string> columnDefs = utils::split(columnsStr, ",");
+    std::vector<std::map<std::string, std::string>> columns;
+
+    std::regex columnPattern(R"((\w+)\s+([\w\(\)]+)\s*(.*))");
+
+    for (const std::string& def : columnDefs) {
+        std::smatch colMatch;
+        if (std::regex_match(def, colMatch, columnPattern)) {
             std::map<std::string, std::string> column;
-            column["name"] = utils::strip((*it)[1].str());
-            column["type"] = utils::strip((*it)[2].str());
-            column["constraints"] = utils::strip((*it)[3].str());
+            column["name"] = utils::strip(colMatch[1].str());
+            column["type"] = utils::strip(colMatch[2].str());
+            column["constraints"] = utils::strip(colMatch[3].str());
             columns.push_back(column);
+            std::cout << "Parsed column:" << std::endl;
+            std::cout << "  name        = " << column["name"] << std::endl;
+            std::cout << "  type        = " << column["type"] << std::endl;
+            std::cout << "  constraints = " << column["constraints"] << std::endl;
         }
-        result["columns"] = columns;
     }
+
+    result["columns"] = columns;
     return result;
 }
 
