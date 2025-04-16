@@ -534,7 +534,6 @@ std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql, tableMan
         }
     }
 
-    result["columns"] = columns;
     return result;
 }
 
@@ -649,25 +648,22 @@ std::map<std::string, SQLVal> Lexer::parseCommit(const std::string& sql){
     return result;
 }
 
-using ParseFunc = std::map<std::string, SQLVal>(Lexer::*)(const std::string&);
+using ParseFunc = std::function<std::map<std::string, SQLVal>(const std::string&)>;
 
 std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
     std::vector<std::pair<std::regex, ParseFunc>> patterns = {
-        {std::regex(R"(^CREATE\s)", ICASE), &Lexer::parseCreate},
-        {std::regex(R"(^INSERT\s)", ICASE), &Lexer::parseInsert},
-        {std::regex(R"(^SELECT\s)", ICASE), &Lexer::parseSelect},
-        {std::regex(R"(^USE\s)", ICASE), &Lexer::parseUse},
-        {std::regex(R"(^DROP\s)", ICASE), &Lexer::parseDrop},
-        {std::regex(R"(^GRANT\s)", ICASE), &Lexer::parseGrant},
-        {std::regex(R"(^REVOKE\s)", ICASE), &Lexer::parseRevoke},
-        {std::regex(R"(^ALTER\s)", ICASE), &Lexer::parseAlter},
-        {std::regex(R"(^SHOW\s)", ICASE), &Lexer::parseShow},
-        {std::regex(R"(^UPDATE\s)", ICASE), &Lexer::parseUpdate},
-        {std::regex(R"(^DELETE\s)", ICASE), &Lexer::parseDelete},
-        {std::regex(R"(^DESCRIBE\s)", ICASE), &Lexer::parseDescribe},
-        {std::regex(R"(^COMMIT\s)", ICASE), &Lexer::parseCommit},
-        {std::regex(R"(^ROLLBACK\s)", ICASE), &Lexer::parseRollback},
-        {std::regex(R"(^START\s)", ICASE), &Lexer::parseStart}
+        {std::regex(R"(^CREATE\s)", ICASE), [this](const std::string& sql) { return parseCreate(sql); }},
+      {std::regex(R"(^INSERT\s)", ICASE), [this](const std::string& sql) { return parseInsert(sql); }},
+      {std::regex(R"(^SELECT\s)", ICASE), [this](const std::string& sql) { return parseSelect(sql); }},
+      {std::regex(R"(^USE\s)", ICASE), [this](const std::string& sql) { return parseUse(sql); }},
+      {std::regex(R"(^DROP\s)", ICASE), [this](const std::string& sql) { return parseDrop(sql); }},
+      {std::regex(R"(^GRANT\s)", ICASE), [this](const std::string& sql) { return parseGrant(sql); }},
+      {std::regex(R"(^REVOKE\s)", ICASE), [this](const std::string& sql) { return parseRevoke(sql); }},
+      {std::regex(R"(^ALTER\s)", ICASE), [this](const std::string& sql) { return parseAlter(sql, tableMgr); }},
+      {std::regex(R"(^SHOW\s)", ICASE), [this](const std::string& sql) { return parseShow(sql); }},
+      {std::regex(R"(^UPDATE\s)", ICASE), [this](const std::string& sql) { return parseUpdate(sql); }},
+      {std::regex(R"(^DELETE\s)", ICASE), [this](const std::string& sql) { return parseDelete(sql); }},
+      {std::regex(R"(^DESCRIBE\s)", ICASE), [this](const std::string& sql) { return parseDescribe(sql); }}
     };
 
     for (const auto& [pattern, func] : patterns) {

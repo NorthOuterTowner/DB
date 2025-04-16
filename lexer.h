@@ -102,7 +102,6 @@ private:
     QWidget *parentWidget; // 新增成员变量，用于保存父窗口指针
     std::string currentDatabase; // 记录当前使用的数据库名称
     std::string currentTable; // 记录当前使用的表名称
-    std::string currentDatabase; // 新增：记录当前使用的数据库名称
     Affair affair;//事务管理
 };
 
