@@ -128,8 +128,24 @@ std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
 
                 }
             }
-        } else if (std::get<std::string>(result["object_type"]) == "TABLE" && match[3].matched) {
-            // 创建表的逻辑
+        } else if (std::get<std::string>(result["object_type"]) == "TABLE" ) {
+            // 使用 tableManager 创建表
+            std::string objectName = std::get<std::string>(result["object_name"]); // 提取
+
+            if (tableMgr.createTable(objectName, currentDatabase)) {
+                // 通知 dbManager 该数据库新增了一个表
+                dbMgr.addTableToDatabase(currentDatabase, objectName);
+                result["status"] = true; // 返回状态成功
+                // 调试
+                std::cout << "Table created successfully." << std::endl;
+
+            }
+            else {
+                result["status"] = false; // 返回状态失败
+                // 调试
+                std::cout << "Table created failed." << std::endl;
+            }
+
             std::string columnsStr = match[3]; // 获取列定义字符串
             std::regex columnPattern(R"(\s*(\w+)\s+(\w+)\s*([\s\S]*?)\s*(?:,|$))");
             std::smatch columnMatch;
@@ -173,11 +189,9 @@ std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
         result["object_type"] = std::string(match[1].str());
         result["object_name"] = std::string(match[2].str());
 
-        if(std::get<std::string>(result["object_type"])=="USER"){
+        if (std::get<std::string>(result["object_type"]) == "USER") {
             UserManage::dropUser(std::get<std::string>(result["object_name"]));
-        }
-        // 使用 dbManager 删除数据库
-        if (std::get<std::string>(result["object_type"]) == "DATABASE") {
+        } else if (std::get<std::string>(result["object_type"]) == "DATABASE") {
             if (std::holds_alternative<std::string>(result["object_name"])) { // 检查类型
                 std::string objectName = std::get<std::string>(result["object_name"]); // 提取
                 if (dbMgr.dropDatabase(objectName)) {
@@ -185,6 +199,14 @@ std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
                 } else {
                     result["status"] = false; // 删除失败
                 }
+            }
+        } else if (std::get<std::string>(result["object_type"]) == "TABLE") {
+            if (tableMgr.dropTable(currentDatabase, std::get<std::string>(result["object_name"]))) {
+                // 调用 dbManager 的 dropTableFromDatabase 函数
+                dbMgr.dropTableFromDatabase(currentDatabase, std::get<std::string>(result["object_name"]));
+                result["status"] = true; // 删除成功
+            } else {
+                result["status"] = false; // 删除失败
             }
         }
 
@@ -195,6 +217,7 @@ std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
     }
     return result;
 }
+
 
 std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", "INSERT"}, {"status", false} };
@@ -262,7 +285,7 @@ std::map<std::string, SQLVal> Lexer::parseUse(const std::string& sql){
     return result;
 }
 
-/**Test Finished 
+/**Test Finished
  * Wait for examination
  * TODO:Need to parse "AS" and conditions
 */
@@ -341,12 +364,12 @@ std::map<std::string, SQLVal> Lexer::parseRevoke(const std::string& sql) {
     return result;
 }
 
-/**Test Finished 
+/**Test Finished
  * Wait for examination
 */
-std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql) {
-    std::map<std::string, SQLVal> result = { {"type", std::string("ALTER")}, {"status", false} } ;
-    std::regex pattern(R"(ALTER\s+TABLE\s+(\w+)\s+(ADD|MODIFY|DROP)\s+([\s\S]*);$)", ICASE);
+std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql, tableManage& tableMgr) {
+    std::map<std::string, SQLVal> result = { {"type", std::string("ALTER")}, {"status", false} };
+    std::regex pattern(R"(ALTER\s+TABLE\s+(\w+)\s+(ADD|MODIFY|DROP)\s+([\s\S]*))", std::regex::icase);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
@@ -354,18 +377,83 @@ std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql) {
         result["action"] = std::string(match[2].str());
         std::string columnsStr = std::string(match[3].str());
 
-        std::vector<std::map<std::string, std::string>> columns;
-        std::regex columnPattern(R"((\w+)\s+([\w\(\)]+)\s*([^,]*))");
-        auto columnBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), columnPattern);
-        auto columnEnd = std::sregex_iterator();
-        for (std::sregex_iterator it = columnBegin; it != columnEnd; ++it) {
-            std::map<std::string, std::string> column;
-            column["name"] = utils::strip((*it)[1].str());
-            column["type"] = utils::strip((*it)[2].str());
-            column["constraints"] = utils::strip((*it)[3].str());
-            columns.push_back(column);
+        std::vector<std::string> fieldNames;
+        std::vector<int> fieldOrders;
+        std::vector<std::string> fieldTypes;
+        std::vector<int> fieldTypeParams;
+        std::vector<std::string> constraints;
+
+        std::string action = std::get<std::string>(result["action"]);
+        if (action == "ADD") {
+            std::regex columnPattern(R"((\w+)\s+([\w\(\)]+)\s*([^,]*))");
+            auto columnBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), columnPattern);
+            auto columnEnd = std::sregex_iterator();
+            for (std::sregex_iterator it = columnBegin; it != columnEnd; ++it) {
+                std::string fieldName = utils::strip((*it)[1].str());
+                std::string fieldTypeStr = utils::strip((*it)[2].str());
+                std::string constraint = utils::strip((*it)[3].str());
+
+                // 假设字段顺序默认为当前字段在列表中的顺序（从1开始）
+                int fieldOrder = static_cast<int>(fieldNames.size() + 1);
+
+                // 解析字段类型和参数
+                std::regex typeParamPattern(R"((\w+)\((\d+)\))");
+                std::smatch typeParamMatch;
+                std::string fieldType;
+                int fieldTypeParam = 0;
+                if (std::regex_search(fieldTypeStr, typeParamMatch, typeParamPattern)) {
+                    fieldType = typeParamMatch[1].str();
+                    fieldTypeParam = std::stoi(typeParamMatch[2].str());
+                } else {
+                    fieldType = fieldTypeStr;
+                }
+
+                fieldNames.push_back(fieldName);
+                fieldOrders.push_back(fieldOrder);
+                fieldTypes.push_back(fieldType);
+                fieldTypeParams.push_back(fieldTypeParam);
+                constraints.push_back(constraint);
+            }
+        } else if (action == "DROP") {
+            std::regex columnPattern(R"(\w+)");
+            auto columnBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), columnPattern);
+            auto columnEnd = std::sregex_iterator();
+            for (std::sregex_iterator it = columnBegin; it != columnEnd; ++it) {
+                std::string fieldName = utils::strip((*it)[0].str());
+                fieldNames.push_back(fieldName);
+                // 对于删除操作，字段顺序、类型、参数和约束可以忽略
+                fieldOrders.push_back(0);
+                fieldTypes.push_back("");
+                fieldTypeParams.push_back(0);
+                constraints.push_back("");
+            }
         }
-        result["columns"] = columns;
+
+        // 从 std::variant 中提取 std::string 类型的值
+        std::string* actionPtr = std::get_if<std::string>(&result["action"]);
+        if (actionPtr) {
+            // 在 Lexer 中进行增加字段的预处理逻辑
+            // 例如，检查字段名是否合法等
+
+            for (const auto& fieldName : fieldNames) {
+                if (fieldName.length() > 128) {
+                    result["status"] = false;
+                    std::cerr << "Invalid field name: " << fieldName << " (length exceeds 128 characters)" << std::endl;
+                    return result;
+                }
+            }
+
+            // 调用 tableManage 的 alterTable 方法更新表信息
+            if (tableMgr.alterTable(currentDatabase, std::get<std::string>(result["table"]), *actionPtr,
+                                    fieldNames, fieldOrders, fieldTypes, fieldTypeParams, constraints)) {
+                result["status"] = true;
+                std::cout << "Altering finished." << std::endl;
+            } else {
+                result["status"] = false;
+                std::cerr << "Altering failed." << std::endl;
+            }
+
+        }
     }
     return result;
 }
@@ -408,7 +496,7 @@ std::map<std::string, SQLVal> Lexer::parseUpdate(const std::string& sql) {
     return result;
 }
 
-/**Test Finished 
+/**Test Finished
  * Wait for examination
  * TODO:Need an extra function to parse the condition
 */
@@ -423,7 +511,7 @@ std::map<std::string, SQLVal> Lexer::parseDelete(const std::string& sql) {
     }
     return result;
 }
-/**Test Finished 
+/**Test Finished
  * Wait for examination
 */
 std::map<std::string, SQLVal> Lexer::parseDescribe(const std::string& sql) {
@@ -438,31 +526,32 @@ std::map<std::string, SQLVal> Lexer::parseDescribe(const std::string& sql) {
     return result;
 }
 
-using ParseFunc = std::map<std::string, SQLVal>(Lexer::*)(const std::string&);
+using ParseFunc = std::function<std::map<std::string, SQLVal>(const std::string&)>;
 
 std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
     std::vector<std::pair<std::regex, ParseFunc>> patterns = {
-        {std::regex(R"(^CREATE\s)", ICASE), &Lexer::parseCreate},
-        {std::regex(R"(^INSERT\s)", ICASE), &Lexer::parseInsert},
-        {std::regex(R"(^SELECT\s)", ICASE), &Lexer::parseSelect},
-        {std::regex(R"(^USE\s)", ICASE), &Lexer::parseUse},
-        {std::regex(R"(^DROP\s)", ICASE), &Lexer::parseDrop},
-        {std::regex(R"(^GRANT\s)", ICASE), &Lexer::parseGrant},
-        {std::regex(R"(^REVOKE\s)", ICASE), &Lexer::parseRevoke},
-        {std::regex(R"(^ALTER\s)", ICASE), &Lexer::parseAlter},
-        {std::regex(R"(^SHOW\s)", ICASE), &Lexer::parseShow},
-        {std::regex(R"(^UPDATE\s)", ICASE), &Lexer::parseUpdate},
-        {std::regex(R"(^DELETE\s)", ICASE), &Lexer::parseDelete},
-        {std::regex(R"(^DESCRIBE\s)", ICASE), &Lexer::parseDescribe}
+        {std::regex(R"(^CREATE\s)", ICASE), [this](const std::string& sql) { return parseCreate(sql); }},
+        {std::regex(R"(^INSERT\s)", ICASE), [this](const std::string& sql) { return parseInsert(sql); }},
+        {std::regex(R"(^SELECT\s)", ICASE), [this](const std::string& sql) { return parseSelect(sql); }},
+        {std::regex(R"(^USE\s)", ICASE), [this](const std::string& sql) { return parseUse(sql); }},
+        {std::regex(R"(^DROP\s)", ICASE), [this](const std::string& sql) { return parseDrop(sql); }},
+        {std::regex(R"(^GRANT\s)", ICASE), [this](const std::string& sql) { return parseGrant(sql); }},
+        {std::regex(R"(^REVOKE\s)", ICASE), [this](const std::string& sql) { return parseRevoke(sql); }},
+        {std::regex(R"(^ALTER\s)", ICASE), [this](const std::string& sql) { return parseAlter(sql, tableMgr); }},
+        {std::regex(R"(^SHOW\s)", ICASE), [this](const std::string& sql) { return parseShow(sql); }},
+        {std::regex(R"(^UPDATE\s)", ICASE), [this](const std::string& sql) { return parseUpdate(sql); }},
+        {std::regex(R"(^DELETE\s)", ICASE), [this](const std::string& sql) { return parseDelete(sql); }},
+        {std::regex(R"(^DESCRIBE\s)", ICASE), [this](const std::string& sql) { return parseDescribe(sql); }}
     };
 
     for (const auto& [pattern, func] : patterns) {
         if (std::regex_search(sql, pattern)) {
-            return (this->*func)(sql);
+            return func(sql);
         }
     }
     return { {"type", std::string("UNKNOWN")}, {"status", false} };
 }
+
 
 void Lexer::handleRawSQL(QString rawSql){
     std::vector<std::string> sqls=utils::split(rawSql.toStdString(),";");
@@ -474,3 +563,10 @@ void Lexer::handleRawSQL(QString rawSql){
     }
 }
 
+void Lexer::setCurrentDatabase(std::string& dbName) {
+    currentDatabase = dbName;
+}
+
+void Lexer::setCurrentTable(std::string& tableName) {
+    currentTable = tableName;
+}

@@ -22,6 +22,9 @@ private slots:
     void onNewDatabaseTriggered(); // 槽，用于处理按钮点击事件,完成新的数据库的建立
     void deleteDatabaseTriggered();
     void startTriggered();
+    void onNewTableTriggered();
+    void onAlterTableTriggered();
+    void onDropTableTriggered();
 
 private:
     Ui::MainWindow *ui;

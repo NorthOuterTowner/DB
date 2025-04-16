@@ -54,6 +54,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(DB
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+        tablemanage.h tablemanage.cpp
+        fieldmanage.h fieldmanage.cpp
     )
 
     qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

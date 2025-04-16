@@ -45,6 +45,10 @@ void dbManager::loadDatabases() {
 
     dbFile.close(); // 关闭文件
     qDebug() << "Loaded databases from file:" << QString::fromStdString(dbFilePath);
+
+    if(db_list) {
+        loadTableDescriptions(); // 初始化时加载表描述信息
+    }
 }
 
 void dbManager::saveDatabases() {
@@ -86,7 +90,7 @@ bool dbManager::createDatabase(const std::string& name) {
     auto now = std::chrono::system_clock::now();
     auto in_time_t = std::chrono::system_clock::to_time_t(now);
     std::ostringstream oss;
-    oss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %H:%M:%S"); // 格式化时间
+    oss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d-%H:%M:%S"); // 格式化时间
     newDB.creation_date = oss.str(); // 字符串格式的当前时间
 
     // 确保字符集和排序规则正确赋值
@@ -114,6 +118,17 @@ bool dbManager::dropDatabase(const std::string& name) {
         databases.erase(it, databases.end()); // 删除找到的数据库
         qDebug() << "Database" << QString::fromStdString(name) << "dropped successfully.";
         saveDatabases(); // 保存到文件
+
+        // 找到并删除对应的表描述文件
+        std::string tableDescFile = "../../res/" + name + ".tb.txt";
+        QFile tbFile(QString::fromStdString(tableDescFile));
+        if (tbFile.exists()) {
+            if (tbFile.remove()) {
+                qDebug() << "Table description file" << QString::fromStdString(tableDescFile) << "deleted successfully.";
+            } else {
+                qWarning() << "Failed to delete table description file:" << QString::fromStdString(tableDescFile);
+            }
+        }
 
         // 如果 db_list 指针不为空，移除对应的 QTreeWidgetItem
         if (db_list) {
@@ -149,4 +164,97 @@ void dbManager::reloadDatabases() {
 void dbManager::setCurrentDatabase(const std::string& dbName) {
     currentDatabase = dbName;
     qDebug() << "Current database set to: " << QString::fromStdString(currentDatabase);
+}
+
+void dbManager::addTableToDatabase(const std::string& dbName, const std::string& tableName) {
+    databaseTables[dbName].push_back(tableName);
+    if (db_list) {
+        for (int i = 0; i < db_list->topLevelItemCount(); ++i) {
+            QTreeWidgetItem* databaseItem = db_list->topLevelItem(i);
+            if (databaseItem->text(0) == QString::fromStdString(dbName)) {
+                QTreeWidgetItem* newTableItem = new QTreeWidgetItem(databaseItem);
+                newTableItem->setText(0, QString::fromStdString(tableName));
+                break;
+            }
+        }
+    }
+}
+
+void dbManager::dropTableFromDatabase(const std::string& dbName, const std::string& tableName) {
+    auto it = databaseTables.find(dbName);
+    if (it != databaseTables.end()) {
+        auto tableIt = std::find(it->second.begin(), it->second.end(), tableName);
+        if (tableIt != it->second.end()) {
+            it->second.erase(tableIt);
+            qDebug() << "Table " << QString::fromStdString(tableName) << " dropped from database " << QString::fromStdString(dbName);
+        }
+    }
+
+    // 如果 db_list 指针不为空，移除对应的 QTreeWidgetItem
+    if (db_list) {
+        for (int i = 0; i < db_list->topLevelItemCount(); ++i) {
+            QTreeWidgetItem* databaseItem = db_list->topLevelItem(i);
+            if (databaseItem->text(0) == QString::fromStdString(dbName)) {
+                for (int j = 0; j < databaseItem->childCount(); ++j) {
+                    QTreeWidgetItem* tableItem = databaseItem->child(j);
+                    if (tableItem->text(0) == QString::fromStdString(tableName)) {
+                        delete tableItem;
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+    }
+}
+
+std::vector<std::string> dbManager::getDatabaseTables(const std::string& dbName) {
+    auto it = databaseTables.find(dbName);
+    if (it != databaseTables.end()) {
+        return it->second;
+    }
+    return {};
+}
+
+void dbManager::loadTableDescriptions() {
+    if (!db_list) {
+        return;
+    }
+
+    for (const auto& db : databases) {
+        std::string tableDescFile = "../../res/" + db.database_name + ".tb.txt";
+        QFile tbFile(QString::fromStdString(tableDescFile));
+        if (tbFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&tbFile);
+            QString line;
+            while ((line = in.readLine()) != "") {
+                std::vector<std::string> parts = split(line.toStdString(), " ");
+                std::string tableName = parts[0];
+
+                // 在 QTreeWidget 中找到对应的数据库项
+                for (int i = 0; i < db_list->topLevelItemCount(); ++i) {
+                    QTreeWidgetItem* databaseItem = db_list->topLevelItem(i);
+                    if (databaseItem->text(0) == QString::fromStdString(db.database_name)) {
+                        QTreeWidgetItem* newTableItem = new QTreeWidgetItem(databaseItem);
+                        newTableItem->setText(0, QString::fromStdString(tableName));
+                        break;
+                    }
+                }
+            }
+            tbFile.close();
+        } else {
+            qWarning() << "Could not open the table description file:" << QString::fromStdString(tableDescFile);
+        }
+    }
+}
+
+std::vector<std::string> dbManager::split(const std::string& s, const std::string& delimiter) {
+    std::vector<std::string> tokens;
+    size_t start = 0, end = 0;
+    while ((end = s.find(delimiter, start)) != std::string::npos) {
+        tokens.push_back(s.substr(start, end - start));
+        start = end + delimiter.length();
+    }
+    tokens.push_back(s.substr(start));
+    return tokens;
 }

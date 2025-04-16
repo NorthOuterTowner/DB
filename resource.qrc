@@ -16,5 +16,7 @@
         <file>res/image/del_db.png</file>
         <file>res/databases.txt</file>
         <file>res/icons/fatal.png</file>
+        <file>res/image/alter_table.png</file>
+        <file>res/image/drop_table.png</file>
     </qresource>
 </RCC>
