@@ -222,6 +222,24 @@ color: rgb(0, 0, 0);</string>
      <string>记住密码</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="button_register_2">
+    <property name="geometry">
+     <rect>
+      <x>690</x>
+      <y>510</y>
+      <width>91</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">border-color: rgb(0, 85, 255);
+background-color: rgb(170, 170, 127);
+color: rgb(0, 0, 0);</string>
+    </property>
+    <property name="text">
+     <string>高级设置</string>
+    </property>
+   </widget>
    <zorder>button_signin</zorder>
    <zorder>button_exit</zorder>
    <zorder>user_lable</zorder>
@@ -233,6 +251,7 @@ color: rgb(0, 0, 0);</string>
    <zorder>user_line</zorder>
    <zorder>code_line</zorder>
    <zorder>rememberCheckBox</zorder>
+   <zorder>button_register_2</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

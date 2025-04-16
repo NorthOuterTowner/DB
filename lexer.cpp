@@ -12,11 +12,10 @@
 #include <memory>
 #include <utility>
 #include <QDebug>
+#include <server.h>
 
-Lexer::Lexer(QWidget *parent) : parentWidget(parent) {}
+Lexer::Lexer(QWidget *parent) : parentWidget(parent),affair("undo.txt") {}
 
-
-// 实现设置 QTreeWidget 指针的方法，传递给 dbManager
 void Lexer::setTreeWidget(QTreeWidget* treeWidget) {
     this->treeWidget = treeWidget;
     dbMgr.setTreeWidget(treeWidget);
@@ -90,6 +89,88 @@ std::shared_ptr<Node> Lexer::parseWhereClause(const std::string& whereStr) {
     return nullptr;
 }
 
+//where嵌套时括号优先
+std::vector<std::string> Lexer::tokenize(const std::string& str) {
+    std::vector<std::string> tokens;
+    std::regex token_pattern(R"(\s*([()])\s*|\s*(AND|OR|=|<>|<|>|<=|>=)\s*|\s*([\w\.']+)\s*)", std::regex::icase);
+    auto begin = std::sregex_iterator(str.begin(), str.end(), token_pattern);
+    auto end = std::sregex_iterator();
+
+    for (auto it = begin; it != end; ++it) {
+        for (int i = 1; i < it->size(); ++i) {
+            if ((*it)[i].matched) {
+                std::string token = (*it)[i].str();
+                std::transform(token.begin(), token.end(), token.begin(), ::toupper);
+                tokens.push_back(token);
+                break;
+            }
+        }
+    }
+    return tokens;
+}
+
+std::shared_ptr<Node> Lexer::parsWhereClause(const std::string& whereClause) {
+    std::vector<std::string> tokens = tokenize(whereClause);
+    int pos = 0;
+    return parsExpression(tokens, pos);
+}
+
+
+std::shared_ptr<Node> Lexer::parsLogicalOp(const std::string& whereClause) {
+    std::vector<std::string> tokens = tokenize(whereClause);
+    int pos = 0;
+    return parsExpression(tokens, pos);
+}
+
+
+// 处理 OR
+std::shared_ptr<Node> Lexer::parsExpression(std::vector<std::string>& tokens, int& pos) {
+    auto node = parseTerm(tokens, pos);
+    while (pos < tokens.size() && tokens[pos] == "OR") {
+        std::string op = tokens[pos++];
+        auto right = parseTerm(tokens, pos);
+        node = std::make_shared<Node>(LogicalOp{op, node, right});
+    }
+    return node;
+}
+
+// 添加这两个函数声明
+//std::shared_ptr<Node> Lexer:: parseTerm(std::vector<std::string>& tokens, int& pos);
+//std::shared_ptr<Node> parseFactor(std::vector<std::string>& tokens, int& pos);
+
+
+// 处理 AND
+std::shared_ptr<Node> Lexer::parseTerm(std::vector<std::string>& tokens, int& pos) {
+    auto node = parseFactor(tokens, pos);
+    while (pos < tokens.size() && tokens[pos] == "AND") {
+        std::string op = tokens[pos++];
+        auto right = parseFactor(tokens, pos);
+        node = std::make_shared<Node>(LogicalOp{op, node, right});
+    }
+    return node;
+}
+
+// 处理括号或基本条件
+std::shared_ptr<Node> Lexer::parseFactor(std::vector<std::string>& tokens, int& pos) {
+    if (tokens[pos] == "(") {
+        ++pos; // 跳过 (
+        auto node = this->parsExpression(tokens, pos);
+        if (tokens[pos] != ")") {
+            throw std::runtime_error("Missing closing parenthesis");
+        }
+        ++pos; // 跳过 )
+        return node;
+    } else {
+        // 是一个基本条件：col op val
+        if (pos + 2 >= tokens.size()) {
+            throw std::runtime_error("Invalid condition in WHERE clause");
+        }
+        Condition cond{tokens[pos], tokens[pos + 1], tokens[pos + 2]};
+        pos += 3;
+        return std::make_shared<Node>(cond);
+    }
+}
+
 // 实现解析创建数据库的函数
 std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
 
@@ -115,17 +196,12 @@ std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
 
                 std::string objectName = std::get<std::string>(result["object_name"]); // 提取
 
-
                 if (dbMgr.createDatabase(objectName)) {
                     result["status"] = true; // 返回状态成功
-                    //调试
                     std::cout << "Database created successfully." << std::endl;
-
                 } else {
                     result["status"] = false; // 返回状态失败
-                    //调试
                     std::cout << "Database created failed." << std::endl;
-
                 }
             }
         } else if (std::get<std::string>(result["object_type"]) == "TABLE" ) {
@@ -147,7 +223,7 @@ std::map<std::string, SQLVal> Lexer::parseCreate(const std::string& sql) {
             }
 
             std::string columnsStr = match[3]; // 获取列定义字符串
-            std::regex columnPattern(R"(\s*(\w+)\s+(\w+)\s*([\s\S]*?)\s*(?:,|$))");
+            std::regex columnPattern(R"(\s*(\w+)\s+(\w+(?:\s*\([^)]*\))?)\s*(.*?)(?:,|$))");
             std::smatch columnMatch;
             std::vector<std::map<std::string, std::string>> columns;
 
@@ -220,6 +296,9 @@ std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
 
 
 std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
+    if(affair.isrunning){
+        affair.writeToUndo(QString::fromStdString(sql));
+    }
     std::map<std::string, SQLVal> result = { {"type", "INSERT"}, {"status", false} };
 
     std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(\([\S\s]+\)))", ICASE);
@@ -452,9 +531,10 @@ std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql, tableMan
                 result["status"] = false;
                 std::cerr << "Altering failed." << std::endl;
             }
-
         }
     }
+
+    result["columns"] = columns;
     return result;
 }
 
@@ -483,8 +563,12 @@ std::map<std::string, SQLVal> Lexer::parseShow(const std::string& sql) {
 
 
 std::map<std::string, SQLVal> Lexer::parseUpdate(const std::string& sql) {
+
+    if(affair.isrunning){
+        affair.writeToUndo(QString::fromStdString(sql));
+    }
     std::map<std::string, SQLVal> result = { {"type", std::string("UPDATE")}, {"status", false} };
-    std::regex pattern(R"(UPDATE\s+(\w+)\s+SET\s+(\w+)\s*=\s*(\w+)\s+WHERE\s+(.+);$)", ICASE);
+    std::regex pattern(R"(UPDATE\s+(\w+)\s+SET\s+(\w+)\s*=\s*(\w+)\s+WHERE\s+(.+))", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
@@ -501,8 +585,11 @@ std::map<std::string, SQLVal> Lexer::parseUpdate(const std::string& sql) {
  * TODO:Need an extra function to parse the condition
 */
 std::map<std::string, SQLVal> Lexer::parseDelete(const std::string& sql) {
+    if(affair.isrunning){
+        affair.writeToUndo(QString::fromStdString(sql));
+    }
     std::map<std::string, SQLVal> result = { {"type", std::string("DELETE")}, {"status", false} };
-    std::regex pattern(R"(DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?;$)", ICASE);
+    std::regex pattern(R"(DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?)", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
@@ -516,7 +603,7 @@ std::map<std::string, SQLVal> Lexer::parseDelete(const std::string& sql) {
 */
 std::map<std::string, SQLVal> Lexer::parseDescribe(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("DESCRIBE")}, {"status", false} };
-    std::regex pattern(R"(DESCRIBE\s+(\w+)(?:\s+(\w+))?;$)", ICASE);
+    std::regex pattern(R"(DESCRIBE\s+(\w+)(?:\s+(\w+))?)", ICASE);
     std::smatch match;
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
@@ -526,22 +613,61 @@ std::map<std::string, SQLVal> Lexer::parseDescribe(const std::string& sql) {
     return result;
 }
 
-using ParseFunc = std::function<std::map<std::string, SQLVal>(const std::string&)>;
+
+std::map<std::string, SQLVal> Lexer::parseStart(const std::string& sql){
+
+    affair.isrunning=true;
+    affair.start();
+
+    std::map<std::string, SQLVal> result = { {"type", std::string("START")}, {"status", false} };
+    std::regex pattern(R"(START\s+(\w+)(?:\s+(\w+))?)", ICASE);
+    std::smatch match;
+    if (std::regex_search(sql, match, pattern)) {
+        result["status"] = true;
+    }
+    return result;
+}
+std::map<std::string, SQLVal> Lexer::parseRollback(const std::string& sql){
+
+    std::map<std::string, SQLVal> result = { {"type", std::string("ROLLBACK")}, {"status", false} };
+    std::regex pattern(R"(ROLLBACK\s+(\w+)(?:\s+(\w+))?)", ICASE);
+    std::smatch match;
+    if (std::regex_search(sql, match, pattern)) {
+        result["status"] = true;
+    }
+    return result;
+}
+std::map<std::string, SQLVal> Lexer::parseCommit(const std::string& sql){
+
+
+    std::map<std::string, SQLVal> result = { {"type", std::string("COMMIT")}, {"status", false} };
+    std::regex pattern(R"(COMMIT\s+(\w+)(?:\s+(\w+))?)", ICASE);
+    std::smatch match;
+    if (std::regex_search(sql, match, pattern)) {
+        result["status"] = true;
+    }
+    return result;
+}
+
+using ParseFunc = std::map<std::string, SQLVal>(Lexer::*)(const std::string&);
 
 std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
     std::vector<std::pair<std::regex, ParseFunc>> patterns = {
-        {std::regex(R"(^CREATE\s)", ICASE), [this](const std::string& sql) { return parseCreate(sql); }},
-        {std::regex(R"(^INSERT\s)", ICASE), [this](const std::string& sql) { return parseInsert(sql); }},
-        {std::regex(R"(^SELECT\s)", ICASE), [this](const std::string& sql) { return parseSelect(sql); }},
-        {std::regex(R"(^USE\s)", ICASE), [this](const std::string& sql) { return parseUse(sql); }},
-        {std::regex(R"(^DROP\s)", ICASE), [this](const std::string& sql) { return parseDrop(sql); }},
-        {std::regex(R"(^GRANT\s)", ICASE), [this](const std::string& sql) { return parseGrant(sql); }},
-        {std::regex(R"(^REVOKE\s)", ICASE), [this](const std::string& sql) { return parseRevoke(sql); }},
-        {std::regex(R"(^ALTER\s)", ICASE), [this](const std::string& sql) { return parseAlter(sql, tableMgr); }},
-        {std::regex(R"(^SHOW\s)", ICASE), [this](const std::string& sql) { return parseShow(sql); }},
-        {std::regex(R"(^UPDATE\s)", ICASE), [this](const std::string& sql) { return parseUpdate(sql); }},
-        {std::regex(R"(^DELETE\s)", ICASE), [this](const std::string& sql) { return parseDelete(sql); }},
-        {std::regex(R"(^DESCRIBE\s)", ICASE), [this](const std::string& sql) { return parseDescribe(sql); }}
+        {std::regex(R"(^CREATE\s)", ICASE), &Lexer::parseCreate},
+        {std::regex(R"(^INSERT\s)", ICASE), &Lexer::parseInsert},
+        {std::regex(R"(^SELECT\s)", ICASE), &Lexer::parseSelect},
+        {std::regex(R"(^USE\s)", ICASE), &Lexer::parseUse},
+        {std::regex(R"(^DROP\s)", ICASE), &Lexer::parseDrop},
+        {std::regex(R"(^GRANT\s)", ICASE), &Lexer::parseGrant},
+        {std::regex(R"(^REVOKE\s)", ICASE), &Lexer::parseRevoke},
+        {std::regex(R"(^ALTER\s)", ICASE), &Lexer::parseAlter},
+        {std::regex(R"(^SHOW\s)", ICASE), &Lexer::parseShow},
+        {std::regex(R"(^UPDATE\s)", ICASE), &Lexer::parseUpdate},
+        {std::regex(R"(^DELETE\s)", ICASE), &Lexer::parseDelete},
+        {std::regex(R"(^DESCRIBE\s)", ICASE), &Lexer::parseDescribe},
+        {std::regex(R"(^COMMIT\s)", ICASE), &Lexer::parseCommit},
+        {std::regex(R"(^ROLLBACK\s)", ICASE), &Lexer::parseRollback},
+        {std::regex(R"(^START\s)", ICASE), &Lexer::parseStart}
     };
 
     for (const auto& [pattern, func] : patterns) {
@@ -556,10 +682,14 @@ std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
 void Lexer::handleRawSQL(QString rawSql){
     std::vector<std::string> sqls=utils::split(rawSql.toStdString(),";");
     for(std::string sql:sqls){
-
         std::map<std::string,SQLVal> result = parseSQL(sql);
-
-        std::cout << "Type: " << std::get<std::string>(result["type"]) << ", Status: " << std::get<bool>(result["status"]) << std::endl;
+        std::string type = std::get<std::string>(result["type"]);
+        bool status = std::get<bool>(result["status"]);
+        std::cout << "Type: " << type << ", Status: " << status << std::endl;
+        if(status){
+            Server * server = Server::getInstance();
+            server->sendMessageToServer(QString::fromStdString(sql));
+        }
     }
 }
 

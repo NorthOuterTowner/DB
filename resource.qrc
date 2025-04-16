@@ -18,5 +18,6 @@
         <file>res/icons/fatal.png</file>
         <file>res/image/alter_table.png</file>
         <file>res/image/drop_table.png</file>
+        <file>res/undo.txt</file>
     </qresource>
 </RCC>
