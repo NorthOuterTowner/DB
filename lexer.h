@@ -10,7 +10,12 @@
 #include <QTextEdit>
 #include <QWidget>
 #include "dbManager.h"
+#include "tablemanage.h"
 #include "databaselistdialog.h"
+#include <filesystem>
+#include <functional>
+
+namespace fs = std::filesystem;
 #include "affair.h"
 
 struct Node; // 前向声明
@@ -67,7 +72,7 @@ public:
     std::map<std::string, SQLVal> parseSelect(const std::string& sql);
     std::map<std::string, SQLVal> parseGrant(const std::string& sql);
     std::map<std::string, SQLVal> parseRevoke(const std::string& sql);
-    std::map<std::string, SQLVal> parseAlter(const std::string& sql);
+    std::map<std::string, SQLVal> parseAlter(const std::string& sql, tableManage& tableMgr);
     std::map<std::string, SQLVal> parseShow(const std::string& sql);
     std::map<std::string, SQLVal> parseUpdate(const std::string& sql);
     std::map<std::string, SQLVal> parseDelete(const std::string& sql);
@@ -77,6 +82,8 @@ public:
     std::map<std::string, SQLVal> parseCommit(const std::string& sql);
     std::map<std::string, SQLVal> parseRollback(const std::string& sql);
     //void setTextEdit(QTextEdit* textEdit); // 用于SHOW DATABASES命令
+    void setCurrentDatabase(std::string& dbName);
+    void setCurrentTable(std::string& tableName);
     //where嵌套时括号优先
     std::vector<std::string> tokenize(const std::string& str);
     std::shared_ptr<Node> parsWhereClause(const std::string& whereClause);
@@ -90,8 +97,11 @@ public:
 private:
     dbManager dbMgr; // 数据库管理器
     QTreeWidget* treeWidget;// 用于在目录下显示数据库
+    tableManage tableMgr;// 表管理器
     //QTextEdit* textEdit; // 用于SHOW DATABASES命令
     QWidget *parentWidget; // 新增成员变量，用于保存父窗口指针
+    std::string currentDatabase; // 记录当前使用的数据库名称
+    std::string currentTable; // 记录当前使用的表名称
     std::string currentDatabase; // 新增：记录当前使用的数据库名称
     Affair affair;//事务管理
 };
