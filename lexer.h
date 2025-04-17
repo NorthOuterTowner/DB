@@ -93,6 +93,7 @@ public:
     std::shared_ptr<Node> parseTerm(std::vector<std::string>& tokens, int& pos);
     std::shared_ptr<Node> parseFactor(std::vector<std::string>& tokens, int& pos);
     std::shared_ptr<Node> parsLogicalOp(const std::string& whereClause);
+    std::map<std::string, SQLVal> parseRecover(const std::string& sql);
 
 private:
     dbManager dbMgr; // 数据库管理器
