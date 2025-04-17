@@ -1,2 +1,2 @@
-z zxy id 1 int 3 2025-04-15-23:18:10 
-z zxy score 1 INT 3 2025-04-16-19:57:48 
+z zxy score 0 INT 1 2025-04-16-19:57:48
+z zxy name 0 VARCHAR 6 2025-04-17-20:29:32

@@ -106,6 +106,9 @@ MainWindow::MainWindow(QWidget *parent)
         QApplication::exit(0);
     });
 
+    // 连接 QTreeWidget 的 itemClicked 信号到槽函数
+    connect(ui->db_list, &QTreeWidget::itemClicked, this, &MainWindow::onTableItemClicked);
+    connect(&lexer, &Lexer::tableDefinitionChanged, this, &MainWindow::onTableDefinitionChanged);
 }
 
 MainWindow::~MainWindow()
@@ -324,6 +327,52 @@ void MainWindow::onAlterTableTriggered()
             std::cout << field << " ";
         }
         std::cout << std::endl;
+    } else if (operation == "MODIFY") {
+        int numFields;
+        bool ok4;
+        numFields = QInputDialog::getInt(this, tr("修改字段数量"),
+                                         tr("请输入要修改的字段数量："),
+                                         0, 0, 100, 1, &ok4);
+        if (!ok4 || numFields <= 0) {
+            return;
+        }
+
+        for (int i = 0; i < numFields; ++i) {
+            bool ok;
+            QString fieldName = QInputDialog::getText(this, tr("修改字段"),
+                                                      tr("请输入要修改的字段名："),
+                                                      QLineEdit::Normal, "", &ok);
+            if (!ok || fieldName.isEmpty()) {
+                QMessageBox::warning(this, tr("输入错误"), tr("字段名不能为空，请重新输入！"));
+                --i; // 让用户重新输入该字段名
+                continue;
+            }
+            fieldNames.push_back(fieldName.toStdString());
+
+            QString fieldType = QInputDialog::getText(this, tr("修改字段"),
+                                                      tr("请输入新的字段类型："),
+                                                      QLineEdit::Normal, "", &ok);
+            if (!ok || fieldType.isEmpty()) {
+                continue;
+            }
+            fieldTypes.push_back(fieldType.toStdString());
+
+            int fieldTypeParam = QInputDialog::getInt(this, tr("修改字段"),
+                                                      tr("请输入新的字段类型参数："),
+                                                      0, 0, 1000, 1, &ok);
+            if (!ok) {
+                continue;
+            }
+            fieldTypeParams.push_back(fieldTypeParam);
+
+            QString constraint = QInputDialog::getText(this, tr("修改字段"),
+                                                       tr("请输入新的字段约束："),
+                                                       QLineEdit::Normal, "", &ok);
+            if (!ok) {
+                constraint = "";
+            }
+            constraints.push_back(constraint.toStdString());
+        }
     }
 
     // 构造 SQL 语句
@@ -352,8 +401,21 @@ void MainWindow::onAlterTableTriggered()
             sql += QString::fromStdString(fieldNames[i]);
         }
         sql += ";";
-    } else {
-        sql = QString("ALTER TABLE %1 %2;").arg(tableName).arg(operation);
+    } else if (operation == "MODIFY") {
+        sql = QString("ALTER TABLE %1 %2 ").arg(tableName).arg(operation);
+        for (size_t i = 0; i < fieldNames.size(); ++i) {
+            if (i > 0) {
+                sql += ", ";
+            }
+            sql += QString::fromStdString(fieldNames[i]) + " " + QString::fromStdString(fieldTypes[i]);
+            if (fieldTypeParams[i] > 0) {
+                sql += QString("(%1)").arg(fieldTypeParams[i]);
+            }
+            if (!constraints[i].empty()) {
+                sql += " " + QString::fromStdString(constraints[i]);
+            }
+        }
+        sql += ";";
     }
 
     // 调试语句
@@ -385,4 +447,57 @@ void MainWindow::onDropTableTriggered() {
     std::string databaseName = dbName.toStdString();
     lexer.setCurrentDatabase(databaseName);
     lexer.handleRawSQL(sql);
+}
+
+void MainWindow::onTableItemClicked(QTreeWidgetItem *item, int column)
+{
+    // 获取被选中的表名
+    QString tableName = item->text(0);
+    std::string tableNameStr = tableName.toStdString();
+
+    // 假设表定义文件路径为 "../../res/表名.tdf.txt"
+    std::string tableDefFilePath = "../../res/" + tableNameStr + ".tdf.txt";
+    QFile tableDefFile(QString::fromStdString(tableDefFilePath));
+
+    if (tableDefFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&tableDefFile);
+        QString line;
+        std::vector<std::string> fieldNames;
+
+        // 读取表定义文件的每一行，提取字段名
+        while ((line = in.readLine()) != "") {
+            std::vector<std::string> parts = lexer.split(line.toStdString(), " ");
+            if (parts.size() > 2) {
+                fieldNames.push_back(parts[2]);
+            }
+        }
+        tableDefFile.close();
+
+        // 设置 tableWidget_2 的列数为字段名的数量
+        ui->tableWidget_2->setColumnCount(static_cast<int>(fieldNames.size()));
+
+        // 将字段名设置为 tableWidget_2 的列名
+        for (size_t i = 0; i < fieldNames.size(); ++i) {
+            QTableWidgetItem *headerItem = new QTableWidgetItem(QString::fromStdString(fieldNames[i]));
+            ui->tableWidget_2->setHorizontalHeaderItem(static_cast<int>(i), headerItem);
+        }
+
+        // 清空 tableWidget_2 的所有行
+        ui->tableWidget_2->setRowCount(0);
+    } else {
+        std::cerr << "Failed to open table definition file: " << tableDefFilePath << std::endl;
+    }
+}
+
+void MainWindow::onTableDefinitionChanged(const QString& tableName)
+{
+    // 创建一个虚拟的 QTreeWidgetItem 用于传递表名
+    QTreeWidgetItem* dummyItem = new QTreeWidgetItem();
+    dummyItem->setText(0, tableName);
+
+    // 调用 onTableItemClicked 函数
+    onTableItemClicked(dummyItem, 0);
+
+    // 释放虚拟的 QTreeWidgetItem
+    delete dummyItem;
 }

@@ -52,6 +52,9 @@ class Lexer : public QObject
 {
     Q_OBJECT
 
+signals:
+    void tableDefinitionChanged(const QString& tableName);
+
 public:
     Lexer(QWidget *parent = nullptr);
 
@@ -93,6 +96,7 @@ public:
     std::shared_ptr<Node> parseTerm(std::vector<std::string>& tokens, int& pos);
     std::shared_ptr<Node> parseFactor(std::vector<std::string>& tokens, int& pos);
     std::shared_ptr<Node> parsLogicalOp(const std::string& whereClause);
+    std::vector<std::string> split(const std::string& s, const std::string& delimiter);
 
 private:
     dbManager dbMgr; // 数据库管理器

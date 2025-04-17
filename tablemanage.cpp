@@ -110,6 +110,7 @@ bool tableManage::alterTable(const std::string& dbName, const std::string& table
 
     fieldManage fm;
     if (operation == "ADD") {
+        // 原有的 ADD 操作逻辑
         currentTableInfo.field_count += fieldNames.size();
         for (size_t i = 0; i < fieldNames.size(); ++i) {
             auto now = std::chrono::system_clock::now();
@@ -124,9 +125,21 @@ bool tableManage::alterTable(const std::string& dbName, const std::string& table
             }
         }
     } else if (operation == "MODIFY") {
-        // 处理修改列的逻辑，这里简单假设不改变字段数和记录数
-        std::cout << "Handling MODIFY operation. This part needs further implementation." << std::endl;
+        // 新增的 MODIFY 操作逻辑
+        for (size_t i = 0; i < fieldNames.size(); ++i) {
+            if (!fm.modifyField(dbName, tableName, fieldNames[i], fieldOrders[i], fieldTypes[i], fieldTypeParams[i], constraints[i])) {
+                std::cerr << "Failed to modify field: " << fieldNames[i] << std::endl;
+                return false;
+            }
+        }
+        // 更新表描述文件中的修改时间
+        auto now = std::chrono::system_clock::now();
+        auto in_time_t = std::chrono::system_clock::to_time_t(now);
+        std::ostringstream oss;
+        oss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d-%H:%M:%S");
+        currentTableInfo.last_modified_date = oss.str();
     } else if (operation == "DROP") {
+        // 原有的 DROP 操作逻辑
         currentTableInfo.field_count -= fieldNames.size();
         for (const auto& fieldName : fieldNames) {
             if (!fm.dropField(dbName, tableName, fieldName)) {
@@ -138,12 +151,6 @@ bool tableManage::alterTable(const std::string& dbName, const std::string& table
         std::cerr << "Invalid operation type: " << operation << std::endl;
         return false;
     }
-
-    auto now = std::chrono::system_clock::now();
-    auto in_time_t = std::chrono::system_clock::to_time_t(now);
-    std::ostringstream oss;
-    oss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d-%H:%M:%S");
-    currentTableInfo.last_modified_date = oss.str();
 
     if (!tbFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         qWarning() << "Could not open the Table-Describe file:" << QString::fromStdString(tableDescFile);

@@ -25,6 +25,8 @@ private slots:
     void onNewTableTriggered();
     void onAlterTableTriggered();
     void onDropTableTriggered();
+    void onTableItemClicked(QTreeWidgetItem *item, int column);
+    void onTableDefinitionChanged(const QString& tableName);
 
 private:
     Ui::MainWindow *ui;
