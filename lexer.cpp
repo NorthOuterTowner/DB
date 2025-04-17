@@ -683,6 +683,17 @@ std::map<std::string, SQLVal> Lexer::parseCommit(const std::string& sql){
     return result;
 }
 
+
+std::map<std::string, SQLVal> Lexer::parseRecover(const std::string& sql){
+    std::map<std::string, SQLVal> result = { {"type", std::string("RECOVER")}, {"status", false} };
+    std::regex pattern(R"(RECOVER\s(\w+))", ICASE);
+    std::smatch match;
+    if (std::regex_search(sql, match, pattern)) {
+        result["status"] = true;
+    }
+    return result;
+}
+
 using ParseFunc = std::function<std::map<std::string, SQLVal>(const std::string&)>;
 
 std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
@@ -698,7 +709,8 @@ std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
       {std::regex(R"(^SHOW\s)", ICASE), [this](const std::string& sql) { return parseShow(sql); }},
       {std::regex(R"(^UPDATE\s)", ICASE), [this](const std::string& sql) { return parseUpdate(sql); }},
       {std::regex(R"(^DELETE\s)", ICASE), [this](const std::string& sql) { return parseDelete(sql); }},
-      {std::regex(R"(^DESCRIBE\s)", ICASE), [this](const std::string& sql) { return parseDescribe(sql); }}
+      {std::regex(R"(^DESCRIBE\s)", ICASE), [this](const std::string& sql) { return parseDescribe(sql); }},
+        {std::regex(R"(^RECOVER\s)", ICASE), [this](const std::string& sql) { return parseRecover(sql); }}
     };
 
     for (const auto& [pattern, func] : patterns) {
