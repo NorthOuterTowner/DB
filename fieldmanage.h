@@ -15,6 +15,8 @@ public:
     bool addField(const std::string& dbName, const std::string& tableName, const std::string& fieldName, int fieldOrder, const std::string& fieldType, int fieldTypeParams, const std::string& modificationTime, const std::string& constraints = "");
     // 删除字段的函数
     bool dropField(const std::string& dbName, const std::string& tableName, const std::string& fieldName);
+    // 修改字段的函数
+    bool modifyField(const std::string& dbName, const std::string& tableName, const std::string& fieldName, int fieldOrder, const std::string& fieldType, int fieldTypeParams, const std::string& constraints);
 private:
     // 定义 FieldInfo 结构体，用于存储字段的详细信息
     struct FieldInfo {

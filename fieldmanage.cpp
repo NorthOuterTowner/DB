@@ -150,7 +150,7 @@ bool fieldManage::createOrUpdateTableDefFile(const FieldInfo& info, const std::s
         defOut << QString::fromStdString(info.constraints) << "\n";
         defFile.close();
 
-        std::cout << "Create a table definition file:\"" << tableDefFile << "\"" << std::endl;
+        std::cout << "Create a table definition file:\"" << tableDefFile << std::endl;
     } else if (operation == "DROP") {
         if (!defFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
             std::cerr << "Failed to open table definition file: " << tableDefFile << std::endl;
@@ -209,4 +209,124 @@ std::vector<std::string> fieldManage::split(const std::string& s, const std::str
 bool fieldManage::dropField(const std::string& dbName, const std::string& tableName, const std::string& fieldName) {
     FieldInfo info(dbName, tableName, fieldName, 0, "", 0, "", "");
     return updateTableDescAndDefFiles(info, "DROP");
+}
+
+// 新增修改字段的方法
+bool fieldManage::modifyField(const std::string& dbName, const std::string& tableName, const std::string& fieldName, int fieldOrder, const std::string& fieldType, int fieldTypeParams, const std::string& constraints) {
+    std::string tableDefFile = getTableDefFilePath(tableName);
+    QFile defFile(QString::fromStdString(tableDefFile));
+    if (!defFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        std::cerr << "Failed to open table definition file: " << tableDefFile << std::endl;
+        return false;
+    }
+
+    QStringList defLines;
+    QTextStream defIn(&defFile);
+    while (!defIn.atEnd()) {
+        defLines.append(defIn.readLine());
+    }
+    defFile.close();
+
+    bool fieldFound = false;
+    for (int i = 0; i < defLines.size(); ++i) {
+        std::vector<std::string> parts = split(defLines[i].toStdString(), " ");
+        if (parts.size() > 2 && parts[2] == fieldName) {
+            fieldFound = true;
+            parts[3] = std::to_string(fieldOrder);
+            parts[4] = fieldType;
+            parts[5] = std::to_string(fieldTypeParams);
+            //parts[7] = constraints;
+
+            QString newLine;
+            for (const auto& part : parts) {
+                newLine += QString::fromStdString(part) + " ";
+            }
+            defLines[i] = newLine.trimmed();
+            break;
+        }
+    }
+
+    if (!fieldFound) {
+        std::cerr << "Field " << fieldName << " not found in table definition file." << std::endl;
+        return false;
+    }
+
+    if (!defFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        std::cerr << "Failed to open table definition file for writing: " << tableDefFile << std::endl;
+        return false;
+    }
+
+    QTextStream defOut(&defFile);
+    for (const auto& line : defLines) {
+        defOut << line << "\n";
+    }
+    defFile.close();
+
+    // 更新表描述文件
+    std::string tableDescFile = getTableDescFilePath(dbName);
+    QFile tbFile(QString::fromStdString(tableDescFile));
+
+    if (!tbFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        std::cerr << "Failed to open table description file: " << tableDescFile << std::endl;
+        return false;
+    }
+
+    QStringList allLines;
+    QTextStream in(&tbFile);
+    while (!in.atEnd()) {
+        allLines.append(in.readLine());
+    }
+    tbFile.close();
+
+    bool found = false;
+    for (int i = 0; i < allLines.size(); ++i) {
+        std::vector<std::string> parts = split(allLines[i].toStdString(), " ");
+        if (parts.size() > 1 && parts[0] == tableName) {
+            found = true;
+            // 更新字段信息
+            for (size_t j = 5; j < parts.size(); j += 5) {
+                if (parts[j] == fieldName) {
+                    parts[j + 1] = std::to_string(fieldOrder);
+                    parts[j + 2] = fieldType;
+                    parts[j + 3] = std::to_string(fieldTypeParams);
+                    parts[j + 4] = constraints;
+
+                    // 更新修改时间为当前时间
+                    auto now = std::chrono::system_clock::now();
+                    auto in_time_t = std::chrono::system_clock::to_time_t(now);
+                    std::ostringstream oss;
+                    oss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d-%H:%M:%S");
+                    std::string modificationTime = oss.str();
+                    parts[3] = modificationTime;
+                    break;
+                }
+            }
+
+            QString newLine;
+            for (const auto& part : parts) {
+                newLine += QString::fromStdString(part) + " ";
+            }
+            allLines[i] = newLine.trimmed();
+            break;
+        }
+    }
+
+    if (!found) {
+        std::cerr << "Table " << tableName << " not found in database " << dbName << std::endl;
+        return false;
+    }
+
+    if (!tbFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        std::cerr << "Failed to open table description file for writing: " << tableDescFile << std::endl;
+        return false;
+    }
+
+    QTextStream out(&tbFile);
+    for (const auto& line : allLines) {
+        out << line << "\n";
+    }
+    tbFile.close();
+
+    std::cout << "Modified field: " << fieldName << " in table: " << tableName << std::endl;
+    return true;
 }

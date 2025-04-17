@@ -464,6 +464,7 @@ std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql, tableMan
 
         std::string action = std::get<std::string>(result["action"]);
         if (action == "ADD") {
+            // 原有的 ADD 操作逻辑
             std::regex columnPattern(R"((\w+)\s+([\w\(\)]+)\s*([^,]*))");
             auto columnBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), columnPattern);
             auto columnEnd = std::sregex_iterator();
@@ -494,6 +495,7 @@ std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql, tableMan
                 constraints.push_back(constraint);
             }
         } else if (action == "DROP") {
+            // 原有的 DROP 操作逻辑
             std::regex columnPattern(R"(\w+)");
             auto columnBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), columnPattern);
             auto columnEnd = std::sregex_iterator();
@@ -505,6 +507,37 @@ std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql, tableMan
                 fieldTypes.push_back("");
                 fieldTypeParams.push_back(0);
                 constraints.push_back("");
+            }
+        } else if (action == "MODIFY") {
+            // 新增的 MODIFY 操作逻辑
+            std::regex columnPattern(R"((\w+)\s+([\w\(\)]+)\s*([^,]*))");
+            auto columnBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), columnPattern);
+            auto columnEnd = std::sregex_iterator();
+            for (std::sregex_iterator it = columnBegin; it != columnEnd; ++it) {
+                std::string fieldName = utils::strip((*it)[1].str());
+                std::string fieldTypeStr = utils::strip((*it)[2].str());
+                std::string constraint = utils::strip((*it)[3].str());
+
+                // 解析字段类型和参数
+                std::regex typeParamPattern(R"((\w+)\((\d+)\))");
+                std::smatch typeParamMatch;
+                std::string fieldType;
+                int fieldTypeParam = 0;
+                if (std::regex_search(fieldTypeStr, typeParamMatch, typeParamPattern)) {
+                    fieldType = typeParamMatch[1].str();
+                    fieldTypeParam = std::stoi(typeParamMatch[2].str());
+                } else {
+                    fieldType = fieldTypeStr;
+                }
+
+                // 假设字段顺序不变
+                int fieldOrder = 0;
+
+                fieldNames.push_back(fieldName);
+                fieldOrders.push_back(fieldOrder);
+                fieldTypes.push_back(fieldType);
+                fieldTypeParams.push_back(fieldTypeParam);
+                constraints.push_back(constraint);
             }
         }
 
@@ -526,6 +559,8 @@ std::map<std::string, SQLVal> Lexer::parseAlter(const std::string& sql, tableMan
             if (tableMgr.alterTable(currentDatabase, std::get<std::string>(result["table"]), *actionPtr,
                                     fieldNames, fieldOrders, fieldTypes, fieldTypeParams, constraints)) {
                 result["status"] = true;
+                // 发射信号通知表定义已更改
+                emit tableDefinitionChanged(QString::fromStdString(std::get<std::string>(result["table"])));
                 std::cout << "Altering finished." << std::endl;
             } else {
                 result["status"] = false;
@@ -707,4 +742,15 @@ void Lexer::setCurrentDatabase(std::string& dbName) {
 
 void Lexer::setCurrentTable(std::string& tableName) {
     currentTable = tableName;
+}
+
+std::vector<std::string> Lexer::split(const std::string& s, const std::string& delimiter) {
+    std::vector<std::string> tokens;
+    size_t start = 0, end = 0;
+    while ((end = s.find(delimiter, start)) != std::string::npos) {
+        tokens.push_back(s.substr(start, end - start));
+        start = end + delimiter.length();
+    }
+    tokens.push_back(s.substr(start));
+    return tokens;
 }
