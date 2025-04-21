@@ -1,0 +1,5 @@
+user1	db1	SELECT
+user1	db1	INSERT
+user2	db2	SELECT
+user2	db2	INSERT
+user2	db2	UPDATE

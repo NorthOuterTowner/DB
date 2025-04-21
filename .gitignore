@@ -10,6 +10,8 @@ CMakeLists.txt.user
 # Ignore IDE file
 .idea/
 /.vscode/
+/.vs/
+/out/
 
 # Ignore log file
 *.log
@@ -17,3 +19,6 @@ CMakeLists.txt.user
 # Ignore Cache
 CMakeCache.txt
 CMakeFiles/
+
+# Ignore hpp unit test file
+*.hpp

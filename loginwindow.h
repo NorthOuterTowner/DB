@@ -16,12 +16,23 @@ class loginwindow : public QMainWindow
 public:
     loginwindow(QWidget *parent = nullptr);
     ~loginwindow();
+    inline std::string getUserName(){
+        return this->user->first;
+    }
 
 private slots:
     void on_button_signin_clicked();
+    void on_code_line_textChanged(const QString &arg1);
+    void on_button_register_clicked();
+
+    void on_user_line_textChanged(const QString &arg1);
+
+    void on_button_exit_clicked();
 
 private:
     Ui::loginwindow *ui;
+    std::pair<std::string,std::string>* user;
+    std::string showCode;
 };
 #endif // LOGINWINDOW_H
 

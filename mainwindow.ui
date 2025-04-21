@@ -31,6 +31,9 @@
       <height>571</height>
      </rect>
     </property>
+    <property name="styleSheet">
+     <string notr="true"/>
+    </property>
     <property name="frameShape">
      <enum>QFrame::Shape::StyledPanel</enum>
     </property>
@@ -52,7 +55,7 @@ border-color: rgb(0, 0, 0);</string>
      </property>
      <column>
       <property name="text">
-       <string>目录</string>
+       <string>数据库列表</string>
       </property>
       <property name="foreground">
        <brush brushstyle="Dense2Pattern">
@@ -65,7 +68,7 @@ border-color: rgb(0, 0, 0);</string>
       </property>
      </column>
     </widget>
-    <widget class="QTextEdit" name="textEdit">
+    <widget class="HighLightTextEdit" name="textEdit">
      <property name="geometry">
       <rect>
        <x>160</x>
@@ -244,10 +247,17 @@ background-color: rgb(134, 134, 134);</string>
   </action>
   <action name="exit_2">
    <property name="text">
-    <string>退出登录</string>
+    <string>退出</string>
    </property>
   </action>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>HighLightTextEdit</class>
+   <extends>QTextEdit</extends>
+   <header location="global">highlighttextedit.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>
