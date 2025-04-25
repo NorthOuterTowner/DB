@@ -330,3 +330,65 @@ bool fieldManage::modifyField(const std::string& dbName, const std::string& tabl
     std::cout << "Modified field: " << fieldName << " in table: " << tableName << std::endl;
     return true;
 }
+
+std::vector<fieldManage::FieldInfo>fieldManage::getFieldsInfo(const std::string& tableName){
+    std::vector<fieldManage::FieldInfo> fields;
+    std::string tableDefFile =fieldManage::getTableDefFilePath(tableName);
+    QFile defFile(QString::fromStdString(tableDefFile));
+
+    if (!defFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        // 文件不存在或打开失败，对于获取字段列表来说，这意味着表没有定义字段或表不存在定义文件
+        // 打印警告或错误，并返回空向量
+        std::cerr << "Warning: Could not open table definition file '" << tableDefFile << "' to get fields." << std::endl;
+        return fields; // 返回空向量
+    }
+
+    QTextStream defIn(&defFile);
+    while (!defIn.atEnd()) {
+        QString line = defIn.readLine();
+        std::vector<std::string> parts = fieldManage::split(line.toStdString(), " ");
+
+        // 假设 .tdf.txt 文件的每行是 "tableName dbName fieldName fieldOrder fieldType fieldTypeParams modificationTime constraints"
+        // 需要至少有 8 部分来构成一个完整的 FieldInfo
+        if (parts.size() >= 8) {
+            // 尝试解析各部分并创建 FieldInfo 对象
+            try {
+                std::string currentTableName = parts[0];
+                std::string dbName = parts[1];
+                std::string fieldName = parts[2];
+                int fieldOrder = std::stoi(parts[3]);
+                std::string fieldType = parts[4];
+                int fieldTypeParams = std::stoi(parts[5]);
+                std::string modificationTime = parts[6];
+                std::string constraints;
+                // constraints 可能会包含空格，需要特殊处理或假设它是最后一列的剩余部分
+                // 简单的处理：假设 constraints 是从 parts[7] 开始到行尾的所有内容，用空格重新连接
+                for (size_t i = 7; i < parts.size(); ++i) {
+                    if (i > 7) constraints += " ";
+                    constraints += parts[i];
+                }
+
+
+                // 创建 FieldInfo 对象并添加到向量
+                // 注意：FieldInfo 构造函数的参数顺序需要和 parts 的解析顺序对应
+                fields.emplace_back(dbName, currentTableName, fieldName, fieldOrder, fieldType, fieldTypeParams, modificationTime, constraints);
+
+            } catch (const std::exception& e) {
+                std::cerr << "Error parsing field definition line in '" << tableDefFile << "': " << line.toStdString() << " - " << e.what() << std::endl;
+                // 可以选择跳过此行或返回错误
+                continue; // 跳过格式错误的行
+            }
+        } else {
+            std::cerr << "Warning: Skipping malformed line in table definition file '" << tableDefFile << "': " << line.toStdString() << std::endl;
+        }
+    }
+    defFile.close();
+
+    // 可选：根据 fieldOrder 对字段进行排序，以便它们按照 CREATE TABLE 中定义的顺序排列
+    std::sort(fields.begin(), fields.end(), [](const FieldInfo& a, const FieldInfo& b) {
+        return a.fieldOrder < b.fieldOrder;
+    });
+
+
+    return fields;
+}

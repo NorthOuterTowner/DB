@@ -225,3 +225,39 @@ bool tableManage::dropTable(const std::string& dbName, const std::string& tableN
 
     return true;
 }
+
+
+tableManage::TableInfo tableManage::getTableInfo(const std::string& dbName,const std::string& tableName){
+    TableInfo tableInfo;
+    // 构建表描述文件路径
+    std::string tableDescFile = "../../res/" + dbName + ".tb.txt";
+
+    // 打开表描述文件
+    std::ifstream file(tableDescFile);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open table description file: " << tableDescFile << std::endl;
+        return tableInfo;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        // 分割每行内容
+        std::vector<std::string> parts = split(line, " ");
+        if (parts.size() >= 7 && parts[0] == tableName) {
+            // 解析表信息
+            tableInfo.table_name = parts[0];
+            tableInfo.databaseName = parts[1];
+            tableInfo.creation_date = parts[2];
+            tableInfo.last_modified_date = parts[3];
+            tableInfo.field_count = std::stoi(parts[4]);
+            tableInfo.record_count = std::stoi(parts[5]);
+            tableInfo.table_type = parts[6];
+            break;
+        }
+    }
+
+    // 关闭文件
+    file.close();
+
+    return tableInfo;
+}
