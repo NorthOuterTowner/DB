@@ -2,7 +2,17 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <QFile>
+#include <QTextStream>
+#include <QString>
+#include <QStringList>
+#include <QIODevice>
 
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <ctime>
+#include <cctype>
 
 datamanager::datamanager() {}
 
@@ -40,14 +50,18 @@ bool datamanager::tryStringtoDouble(const std::string& s,double& out){
 
 bool datamanager::tryStringtoBool(const std::string& s,bool& out){
     //简化处理：接收 true、false、1、0
-    std::string lower_s;
-    lower_s.resize(s.size());
-    std::transform(s.begin(),s.end(),s.begin(),::tolower);
+    //需要一个非const的副本进行转换
+    std::string upper_s=s;//创建一个非const的副本
+    //将副本转换为大写
+    std::transform(upper_s.begin(),upper_s.end(),upper_s.begin(),[](unsigned char c){
+        return std::toupper(c);
+    });
 
-    if(lower_s=="true"||lower_s =="1"){
+    //进行大写比较
+    if(upper_s=="TRUE"||upper_s =="1"){
         out=true;
         return true;
-    }else if(lower_s=="false"||lower_s=="0"){
+    }else if(upper_s=="FALSE"||upper_s=="0"){
         out=false;
         return true;
     }
@@ -181,4 +195,71 @@ bool datamanager::validateInsertData(const tableManage::TableInfo& tableInfo,con
 
 
 
+}
+
+//实现 updateTableRecordCount方法
+void datamanager::updateTableRecordCount(const std::string& dbName,const std::string& tableName,int count){
+    tableMgr.updateTableRecordCount(dbName,tableName,count);
+}
+
+
+void datamanager::updateTableLastModifiedDate(const std::string& dbName, const std::string& tableName) {
+    std::string tableDescFile = "../../res/" + dbName + ".tb.txt";
+    QFile tbFile(QString::fromStdString(tableDescFile));
+
+    if (!tbFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        std::cerr << "Failed to open table description file: " << tableDescFile << std::endl;
+        return;
+    }
+
+    QStringList allLines;
+    QTextStream in(&tbFile);
+    while (!in.atEnd()) {
+        allLines.append(in.readLine());
+    }
+    tbFile.close();
+
+    bool found = false;
+    for (int i = 0; i < allLines.size(); ++i) {
+        std::vector<std::string> parts;
+        QString line = allLines[i];
+        QStringList lineParts = line.split(" ");
+        for (const auto& part : lineParts) {
+            parts.push_back(part.toStdString());
+        }
+
+        if (parts.size() > 1 && parts[0] == tableName) {
+            found = true;
+            // 更新修改时间为当前时间
+            auto now = std::chrono::system_clock::now();
+            auto in_time_t = std::chrono::system_clock::to_time_t(now);
+            std::ostringstream oss;
+            oss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d-%H:%M:%S");
+            std::string modificationTime = oss.str();
+            parts[3] = modificationTime; // 假设修改时间在第 4 列
+
+            QString newLine;
+            for (const auto& part : parts) {
+                newLine += QString::fromStdString(part) + " ";
+            }
+            allLines[i] = newLine.trimmed();
+            break;
+        }
+    }
+
+    if (!found) {
+        std::cerr << "Table " << tableName << " not found in database " << dbName << std::endl;
+        return;
+    }
+
+    if (!tbFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        std::cerr << "Failed to open table description file for writing: " << tableDescFile << std::endl;
+        return;
+    }
+
+    QTextStream out(&tbFile);
+    for (const auto& line : allLines) {
+        out << line << "\n";
+    }
+    tbFile.close();
 }
