@@ -35,7 +35,7 @@ void Lexer::setTextEdit(QTextEdit* textEdit) {
 
 using SQLVal = std::variant< bool, std::string, std::vector<std::string>,
                             std::vector<std::map<std::string,std::string>>,
-                            std::vector<std::vector<std::string>>,std::shared_ptr<Node> >;
+                            std::vector<std::vector<std::string>>,std::shared_ptr<Node>,std::vector<SortRule> >;
 
 std::shared_ptr<Node> parseWhereClause(const std::string& whereStr);
 
@@ -368,31 +368,114 @@ std::map<std::string, SQLVal> Lexer::parseUse(const std::string& sql){
  * Wait for examination
  * TODO:Need to parse "AS" and conditions
 */
+// std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
+//     std::map<std::string, SQLVal> result = { {"type", std::string("SELECT")}, {"status", false} };
+//     std::regex pattern(R"(SELECT\s+(.*?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.*?))?(?:\s+GROUP\s+BY\s+(.*?))?(?:\s+HAVING\s+(.*?))?(?:\s+ORDER\s+BY\s+(.*?))??)", ICASE);
+//     std::smatch match;
+
+//     if (std::regex_search(sql, match, pattern)) {
+//         result["status"] = true;
+
+//         std::regex colRegex(R"(\w+(?:\s+)?)", ICASE);
+//         std::string matchStr = match[1].str();
+//         auto colBegin = std::sregex_iterator(matchStr.begin(), matchStr.end(), colRegex);
+//         auto colEnd = std::sregex_iterator();
+//         std::vector<std::string> columns;
+//         for (auto it = colBegin; it != colEnd; ++it) {
+//             columns.push_back(it->str());
+//         }
+//         result["columns"] = columns;
+
+//         result["table"] = std::string(match[2].str());
+//         if (match[3].matched) result["where"] = parseWhereClause(std::string(match[3].str()));
+//         if (match[4].matched) result["group_by"] = std::string(match[4].str());
+//         if (match[5].matched) result["having"] = std::string(match[5].str());
+//         if (match[6].matched) result["order_by"] = std::string(match[6].str());
+//         if (match[7].matched) result["limit"] = std::string(match[7].str());
+//     }
+//     return result;
+// }
+
+
 std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
-    std::map<std::string, SQLVal> result = { {"type", std::string("SELECT")}, {"status", false} };
-    std::regex pattern(R"(SELECT\s+(.*?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.*?))?(?:\s+GROUP\s+BY\s+(.*?))?(?:\s+HAVING\s+(.*?))?(?:\s+ORDER\s+BY\s+(.*?))?(?:\s+LIMIT\s+(.*?))?)", ICASE);
+    std::map<std::string, SQLVal> result = { {"type", "SELECT"}, {"status", false} };
+
+    // 子句分隔使用非贪婪匹配，确保各子句正确解析
+    std::regex pattern(
+        R"(SELECT\s+([\w,\s]+)\s+FROM\s+(\w+)(?:\s+WHERE\s+([^GROUP]+?))?(?:\s+GROUP\s+BY\s+([^HAVING]+?))?(?:\s+HAVING\s+([^ORDER]+?))?(?:\s+ORDER\s+BY\s+([^;]+?))?)",
+        ICASE | std::regex::optimize
+        );
     std::smatch match;
 
-    if (std::regex_search(sql, match, pattern)) {
-        result["status"] = true;
-
-        std::regex colRegex(R"(\w+(?:\s+AS\s+\w+)?)", ICASE);
-        std::string matchStr = match[1].str();
-        auto colBegin = std::sregex_iterator(matchStr.begin(), matchStr.end(), colRegex);
-        auto colEnd = std::sregex_iterator();
-        std::vector<std::string> columns;
-        for (auto it = colBegin; it != colEnd; ++it) {
-            columns.push_back(it->str());
-        }
-        result["columns"] = columns;
-
-        result["table"] = std::string(match[2].str());
-        if (match[3].matched) result["where"] = parseWhereClause(std::string(match[3].str()));
-        if (match[4].matched) result["group_by"] = std::string(match[4].str());
-        if (match[5].matched) result["having"] = std::string(match[5].str());
-        if (match[6].matched) result["order_by"] = std::string(match[6].str());
-        if (match[7].matched) result["limit"] = std::string(match[7].str());
+    if (!std::regex_search(sql, match, pattern)) {
+        return result; // 解析失败直接返回
     }
+
+    result["status"] = true;
+
+    // 1. 解析列名（去除多余空格，不支持AS别名）
+    std::vector<std::string> columns;
+    std::string columnsStr = match[1].str();
+    std::vector<std::string> rawColumns = split(columnsStr, ",");
+    for (auto& col : rawColumns) {
+        col = utils::strip(col); // 去除前后空格
+        if (!col.empty()) {
+            columns.push_back(col);
+        }
+    }
+    result["columns"] = columns;
+
+    // 2. 解析表名
+    result["table"] = match[2].str();
+
+    // 3. 解析WHERE条件（使用带括号的解析器）
+    if (match[3].matched) {
+        result["where"] = parsWhereClause(match[3].str()); // 关键：使用parsWhereClause处理括号
+    }
+
+    // 4. 解析GROUP BY（仅存储列名列表）
+    if (match[4].matched) {
+        std::string groupByStr = match[4].str();
+        std::vector<std::string> groupByColumns = split(groupByStr, ",");
+        for (auto& col : groupByColumns) {
+            col = utils::strip(col);
+        }
+        result["group_by"] = groupByColumns;
+    }
+
+    // 5. 解析HAVING条件（暂存原始字符串，后续需扩展解析）
+    if (match[5].matched) {
+        result["having"] = match[5].str();
+    }
+
+    // 6. 解析ORDER BY（提取列名和排序方向）
+    if (match[6].matched) {
+        std::vector<SortRule> sortRules;
+        std::string orderByStr = match[6].str();
+        std::vector<std::string> orderTokens = split(orderByStr, ",");
+        for (auto& token : orderTokens) {
+            token = utils::strip(token);
+            if (token.empty()) continue;
+
+            SortRule rule;
+            size_t spacePos = token.find_last_of(" \t"); // 查找最后一个空格，区分列名和排序关键字
+            if (spacePos != std::string::npos) {
+                std::string col = token.substr(0, spacePos);
+                std::string order = token.substr(spacePos + 1);
+                rule.column = col;
+                rule.isAscending = (order == "ASC" || order.empty()); // 默认升序
+            } else {
+                rule.column = token;
+                rule.isAscending = true; // 无关键字默认升序
+            }
+            sortRules.push_back(rule);
+        }
+        result["order_by"] = sortRules;
+    }
+
+    // 移除分页参数（确保无LIMIT）
+    result.erase("limit");
+
     return result;
 }
 
@@ -729,8 +812,13 @@ void Lexer::handleRawSQL(QString rawSql){
         std::string type = std::get<std::string>(result["type"]);
         bool status = std::get<bool>(result["status"]);
         std::cout << "Type: " << type << ", Status: " << status << std::endl;
+
+
+
+
+
         if(status){
-            Server * server = Server::getInstance();
+          Server * server = Server::getInstance();
             server->sendMessageToServer(QString::fromStdString(sql));
         }
     }

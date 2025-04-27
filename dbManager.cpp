@@ -6,6 +6,8 @@
 #include <QTextEdit>
 
 dbManager::dbManager() : db_list(nullptr) {
+
+
     loadDatabases(); // 初始化时加载现有数据库
 }
 
@@ -106,6 +108,23 @@ bool dbManager::createDatabase(const std::string& name) {
     }
 
     saveDatabases(); // 保存到文件
+
+
+
+
+
+
+    // 创建 *.tdf.txt 文件
+    std::string tdfFilePath = "../../res/" + name + ".tdf.txt";
+    QFile tdfFile(QString::fromStdString(tdfFilePath));
+    if (!tdfFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qWarning() << "Could not create the table definition file:" << QString::fromStdString(tdfFilePath);
+        return false;
+    }
+    tdfFile.close();
+
+
+
     return true;
 }
 

@@ -11,6 +11,7 @@
 #include <QWidget>
 #include "dbManager.h"
 #include "tablemanage.h"
+#include "datamanager.h"
 #include "databaselistdialog.h"
 #include <filesystem>
 #include <functional>
@@ -38,6 +39,11 @@ struct Node : std::variant<Condition, LogicalOp> {
     using variant::variant;
 };
 
+struct SortRule {
+    std::string column;    // 列名
+    bool isAscending;      // 是否升序（默认true）
+};
+
 // 定义 SQLVal 类型别名
 using SQLVal = std::variant<
     bool,
@@ -45,7 +51,8 @@ using SQLVal = std::variant<
     std::vector<std::string>,
     std::vector<std::map<std::string, std::string>>,
     std::vector<std::vector<std::string>>,
-    std::shared_ptr<Node> // 使用 Node (指针)
+    std::shared_ptr<Node>, // 使用 Node (指针)
+    std::vector<SortRule>
     >;
 
 class Lexer : public QObject
