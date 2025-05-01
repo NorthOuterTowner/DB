@@ -13,6 +13,8 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+
+
     // 调用 lexer 的 setTreeWidget 方法设置 QTreeWidget 指针
     lexer.setTreeWidget(ui->db_list);
     lexer.reloadDbManagerDatabases(); // 调用新增的公共方法重新加载数据库信息
@@ -109,6 +111,12 @@ MainWindow::MainWindow(QWidget *parent)
     // 连接 QTreeWidget 的 itemClicked 信号到槽函数
     connect(ui->db_list, &QTreeWidget::itemClicked, this, &MainWindow::onTableItemClicked);
     connect(&lexer, &Lexer::tableDefinitionChanged, this, &MainWindow::onTableDefinitionChanged);
+
+    connect(&lexer, &Lexer::sendSelectResult, this, &MainWindow::displaySelectResult);
+
+    dbMgr=new dbManager();
+    dataMgr=new datamanager(dbMgr);
+
 }
 
 MainWindow::~MainWindow()
@@ -501,3 +509,26 @@ void MainWindow::onTableDefinitionChanged(const QString& tableName)
     // 释放虚拟的 QTreeWidgetItem
     delete dummyItem;
 }
+
+void MainWindow::displaySelectResult(const std::vector<std::vector<std::string>>& rows) {
+    QTableWidget* table = ui->tableWidget_2;
+    table->clear(); // 清空旧数据
+    table->setRowCount(0);
+    table->setColumnCount(0);
+
+    if (rows.empty()) return; // 没有数据
+
+    int columnCount = static_cast<int>(rows[0].size());
+    table->setColumnCount(columnCount);
+
+    for (int row = 0; row < rows.size(); ++row) {
+        table->insertRow(row);
+        for (int col = 0; col < columnCount; ++col) {
+            QTableWidgetItem* item = new QTableWidgetItem(QString::fromStdString(rows[row][col]));
+            table->setItem(row, col, item);
+        }
+    }
+
+    table->resizeColumnsToContents(); // 自动调整列宽
+}
+

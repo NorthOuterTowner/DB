@@ -37,7 +37,7 @@ public:
     };
 
     //获取表的字段列表
-        std::vector<FieldInfo>getFieldsInfo(const std::string& tableName);
+        std::vector<FieldInfo>getFieldsInfo(const std::string& dbName,const std::string& tableName);
 
 private:
     // 定义 FieldInfo 结构体，用于存储字段的详细信息

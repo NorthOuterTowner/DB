@@ -277,3 +277,7 @@ std::vector<std::string> dbManager::split(const std::string& s, const std::strin
     tokens.push_back(s.substr(start));
     return tokens;
 }
+
+std::string dbManager::getCurrentDatabase() const {
+    return currentDatabase;
+}

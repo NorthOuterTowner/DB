@@ -27,9 +27,12 @@ private slots:
     void onDropTableTriggered();
     void onTableItemClicked(QTreeWidgetItem *item, int column);
     void onTableDefinitionChanged(const QString& tableName);
+    void displaySelectResult(const std::vector<std::vector<std::string>>& rows);
 
 private:
     Ui::MainWindow *ui;
     Lexer lexer; // 数据库解析器实例
+    dbManager* dbMgr;
+    datamanager* dataMgr;//数据管理
 };
 #endif // MAINWINDOW_H

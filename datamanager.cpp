@@ -3,6 +3,7 @@
 #include <iostream>
 #include <sstream>
 #include <QFile>
+#include <QDir>
 #include <QTextStream>
 #include <QString>
 #include <QStringList>
@@ -15,14 +16,31 @@
 #include <cctype>
 #include "lexer.h"
 namespace fs=std::filesystem;
-datamanager::datamanager() {}
+datamanager::datamanager(dbManager* dbMgr):dbMgr(dbMgr) {}
 
-// 示例函数，用于构建文件路径
-std::string buildFilePath(const std::string& dbName, const std::string& tableName) {
-    fs::path basePath = fs::current_path() / "res";
-    fs::path filePath = basePath / (tableName + ".data.txt");
-    std::cout << "Trying to open file: " << filePath.string() << std::endl;
-    return filePath.string();
+std::string datamanager::getCurrentDatabase() const{
+    if(dbMgr){
+        return dbMgr->getCurrentDatabase();//通过dbManager获取当前数据库
+    }
+    return "";//如果dbMgr为null，返回空字符串
+}
+
+// // 示例函数，用于构建文件路径
+// std::string buildFilePath(const std::string& dbName, const std::string& tableName) {
+//     fs::path basePath = fs::current_path() / "res";
+//     fs::path filePath = basePath / (tableName + ".data.txt");
+//     std::cout << "Trying to open file: " << filePath.string() << std::endl;
+//     return filePath.string();
+// }
+
+// 构建文件路径（与 tableManage 保持一致：../../res/表名.data.txt）
+std::string datamanager::buildFilePath(const std::string& dbName,const std::string& tableName) {
+   // fs::path basePath = fs::current_path() / "../../res";
+    //if (!fs::exists(basePath)) {
+      //  fs::create_directories(basePath);
+    //}
+    //return (basePath / (tableName + ".data.txt")).string();
+   return "../../res/"+tableName+".data.txt";
 }
 
 bool datamanager::tryStringtoInt(const std::string& s,int& out){
@@ -425,6 +443,8 @@ void datamanager::updateTableLastModifiedDate(const std::string& dbName, const s
 }
 
 bool datamanager::insertData(const std::string& dbName,const std::string& tableName,const std::vector<std::string>& values){
+    std::cout << "[DEBUG] Entered datamanager::insertData()" << std::endl;
+
     // 获取表信息
     tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
     if (tableInfo.table_name.empty()) {
@@ -433,7 +453,7 @@ bool datamanager::insertData(const std::string& dbName,const std::string& tableN
     }
 
     //获取表的详细列信息
-    std::vector<fieldManage::FieldInfo>columnsInfo=fieldMgr.getFieldsInfo(tableName);
+    std::vector<fieldManage::FieldInfo>columnsInfo=fieldMgr.getFieldsInfo(dbName,tableName);
 
     // 验证插入数据
     if (!validateInsertData(tableInfo,columnsInfo, values)) {
@@ -442,9 +462,24 @@ bool datamanager::insertData(const std::string& dbName,const std::string& tableN
     }
 
     // 构建数据文件路径
-   // std::string dataFilePath = "../../res/" + tableName + ".data.txt";
+    //std::string dataFilePath = "../../res/" + tableName + ".data.txt";
 
-    std::string dataFilePath = buildFilePath(dbName, tableName);
+     std::string dataFilePath = buildFilePath(dbName,tableName);
+
+    //std::string dataFilePath = buildFilePath(dbName, tableName);
+
+
+     // 如果数据文件不存在，先创建一个空文件
+     std::ifstream checkFile(dataFilePath);
+     if (!checkFile.good()) {
+         std::ofstream createFile(dataFilePath); // 创建空文件
+         if (!createFile.is_open()) {
+             std::cerr << "Failed to create data file: " << dataFilePath << std::endl;
+             return false;
+         }
+         createFile.close();
+         std::cout << "[DEBUG] Data file created: " << dataFilePath << std::endl;
+     }
 
 
     // 打开数据文件以追加模式写入
@@ -472,6 +507,7 @@ bool datamanager::insertData(const std::string& dbName,const std::string& tableN
     // 更新表的最后修改时间
     updateTableLastModifiedDate(dbName, tableName);
 
+     std::cout << "数据插入成功，路径：" << dataFilePath << std::endl;
     return true;
 }
 
@@ -556,121 +592,72 @@ bool datamanager::validateInsertData(const tableManage::TableInfo& tableInfo,con
 
 
 
-bool datamanager::deleteData(const std::string& dbName, const std::string& tableName, const std::vector<int>& rowIndicesToDelete) {
-    // 获取表信息，验证表是否存在
+bool datamanager::deleteData(const std::string& dbName,const std::string& tableName, const std::string& primaryKeyValue
+    ) {
+    // 获取表结构
     tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
     if (tableInfo.table_name.empty()) {
-        std::cerr << "Error deleting data: Table '" << tableName << "' does not exist in database '" << dbName << "'." << std::endl;
+        std::cerr << "Error: Table does not exist.\n";
         return false;
     }
 
-    // 如果没有指定要删除的行，直接返回成功
-    if (rowIndicesToDelete.empty()) {
-        std::cout << "No rows specified for deletion in table '" << tableName << "'." << std::endl;
-        return true;
+    std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(dbName, tableName);
+    int primaryKeyIndex = -1;
+    for (int i = 0; i < columnsInfo.size(); ++i) {
+        std::string constraintLower = columnsInfo[i].constraints;
+        std::transform(constraintLower.begin(), constraintLower.end(), constraintLower.begin(), ::tolower);
+        if (constraintLower.find("primary key") != std::string::npos) {
+            primaryKeyIndex = i;
+            break;
+        }
     }
-
-    // 构建数据文件和临时文件路径
-    std::string dataFilePath = "../../res/" + tableName + ".data.txt";
-    std::string tempFilePath = dataFilePath + ".tmp"; // 临时文件名称
-
-    // 对要删除的行索引进行排序，方便后续比对
-    std::vector<int> sortedIndices = rowIndicesToDelete;
-    std::sort(sortedIndices.begin(), sortedIndices.end());
-
-    // 检查是否有重复的索引
-    auto it_unique = std::unique(sortedIndices.begin(), sortedIndices.end());
-    if (it_unique != sortedIndices.end()) {
-        std::cerr << "Warning: Duplicate row indices provided for deletion. Processing unique indices only." << std::endl;
-        sortedIndices.erase(it_unique, sortedIndices.end());
-    }
-
-    // 打开原始数据文件进行读取
-    std::ifstream dataFile(dataFilePath);
-    if (!dataFile.is_open()) {
-        std::cerr << "Error deleting data: Failed to open data file '" << dataFilePath << "' for reading." << std::endl;
-        // 如果文件不存在，并且请求删除一些行，这通常被认为是错误。
+    if (primaryKeyIndex == -1) {
+        std::cerr << "Error: No primary key found.\n";
         return false;
     }
 
-    // 打开临时文件进行写入
-    std::ofstream tempFile(tempFilePath);
-    if (!tempFile.is_open()) {
-        std::cerr << "Error deleting data: Failed to create temporary file '" << tempFilePath << "' for writing." << std::endl;
-        dataFile.close(); // 创建临时文件失败，关闭输入文件
+    std::string dataFilePath = buildFilePath(dbName, tableName);
+    std::string tempFilePath = dataFilePath + ".tmp";
+
+    std::ifstream inFile(dataFilePath);
+    std::ofstream outFile(tempFilePath);
+    if (!inFile.is_open() || !outFile.is_open()) {
+        std::cerr << "Error opening file.\n";
         return false;
     }
 
     std::string line;
-    int currentLineIndex = 0; // 当前正在读取的行索引 (从 0 开始)
-    size_t deleteIndexPtr = 0; // 指向 sortedIndices 中当前要比对的索引
-
-    // 逐行读取原始文件，并写入临时文件，跳过需要删除的行
-    int deleteCount=0;//记录实际删除的行数
-
-    while (std::getline(dataFile, line)) {
-        bool shouldDelete = false;
-
-        // 检查 sortedIndices 中当前指向的索引是否等于当前行索引
-        // deleteIndexPtr < sortedIndices.size() 避免越界访问
-        if (deleteIndexPtr < sortedIndices.size() && sortedIndices[deleteIndexPtr] == currentLineIndex) {
-            shouldDelete = true;
-            // 如果当前行需要删除，则前进到 sortedIndices 中的下一个索引
-            deleteIndexPtr++;
+    bool deleted = false;
+    while (std::getline(inFile, line)) {
+        std::vector<std::string> row = splitString(line, ',');
+        if (row.size() != columnsInfo.size()) {
+            outFile << line << "\n";
+            continue;
         }
 
-
-        if (!shouldDelete) {
-            // 如果不需要删除，则写入临时文件
-            tempFile << line << std::endl;
-        } else {
-            deleteCount++;//如果当前行需要删除 则前进到sortedIndices中的下一个索引
+        if (row[primaryKeyIndex] == primaryKeyValue) {
+            deleted = true;
+            continue; // 跳过该行
         }
 
-        currentLineIndex++; // 移动到下一行，增加行索引
+        outFile << joinRowValues(row) << "\n";
     }
 
-    // 关闭文件
-    dataFile.close();
-    tempFile.close();
+    inFile.close();
+    outFile.close();
 
-    // 检查临时文件是否写入成功
-    if (tempFile.fail()) {
-        std::cerr << "Error deleting data: Failed writing to temporary file '" << tempFilePath << "'." << std::endl;
-        // 清理部分写入的临时文件
-        try { fs::remove(tempFilePath); } catch(const fs::filesystem_error & e) {
-            std::cerr << "Error cleaning up temporary file: " << e.what() << std::endl;
-        }
+    if (deleted) {
+        std::remove(dataFilePath.c_str());
+        std::rename(tempFilePath.c_str(), dataFilePath.c_str());
+        updateTableRecordCount(dbName, tableName, -1);
+        updateTableLastModifiedDate(dbName, tableName);
+        return true;
+    } else {
+        std::remove(tempFilePath.c_str());
+        std::cerr << "No matching row found.\n";
         return false;
     }
-
-
-    // 替换原始数据文件
-    try {
-        // 删除原始文件
-        fs::remove(dataFilePath);
-
-        // 将临时文件重命名为原始文件名称
-        fs::rename(tempFilePath, dataFilePath);
-
-    } catch (const fs::filesystem_error& e) {
-        std::cerr << "Error deleting data: Filesystem error during file replacement: " << e.what() << std::endl;
-        // 如果重命名失败，尝试清理临时文件
-        try { fs::remove(tempFilePath); } catch(const fs::filesystem_error& e2) {
-            std::cerr << "Error cleaning up temporary file after rename failure: " << e2.what() << std::endl;
-        }
-        return false;
-    }
-
-    // 更新元数据
-    if(deleteCount>0){//实际成功删除的行数
-    updateTableRecordCount(dbName, tableName, -deleteCount); // 减少记录数
-    updateTableLastModifiedDate(dbName, tableName); // 更新最后修改时间
-    }
-    std::cout << "Successfully deleted " << deleteCount << " rows from table '" << tableName << "'." << std::endl;
-    return true;
 }
-
 
 // 执行 SELECT 查询
 std::vector<std::vector<std::string>> datamanager::selectData(
@@ -689,7 +676,7 @@ std::vector<std::vector<std::string>> datamanager::selectData(
     }
 
     // 2. 获取表的列信息
-    std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(tableName);
+    std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(dbName,tableName);
     if (columnsInfo.empty()) {
         std::cerr << "Error selecting data: Could not retrieve column information for table '" << tableName << "'." << std::endl;
         // 即使是空表也应该有列信息，这是一个错误
@@ -771,167 +758,83 @@ std::vector<std::vector<std::string>> datamanager::selectData(
 
 
 // 执行 UPDATE 操作
-bool datamanager::updateData(
-    const std::string& dbName,
-    const std::string& tableName,
-    const std::string& setClause,    // SET 子句字符串 (例如 "column1=value1, column2=value2")
-    const std::shared_ptr<Node>& whereTree  // WHERE 子句的 AST 根节点 (由调用方解析并传入，可能为 nullptr)
-    ) {
-    // 1. 验证表是否存在
+bool datamanager::updateData( const std::string& dbName,
+                             const std::string& tableName,
+                             const std::map<std::string, std::string>& setMap,
+                             const std::string& primaryKeyName,
+                             const std::string& primaryKeyValue){
+    // 1. 获取表结构
     tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
     if (tableInfo.table_name.empty()) {
-        std::cerr << "Error updating data: Table '" << tableName << "' does not exist in database '" << dbName << "'." << std::endl;
-        return false; // 表不存在，更新失败
+        std::cerr << "Error: Table '" << tableName << "' does not exist." << std::endl;
+        return false;
     }
 
-    // 2. 获取表的列信息
-    std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(tableName);
+    std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(dbName, tableName);
     if (columnsInfo.empty()) {
-        std::cerr << "Error updating data: Could not retrieve column information for table '" << tableName << "'." << std::endl;
-            // 应该有列信息，这是一个错误
+        std::cerr << "Error: No column info found for table '" << tableName << "'." << std::endl;
         return false;
     }
 
-
-    // 3. 解析 SET 子句
-    std::map<int, std::string> updates = parseSetClause(setClause, columnsInfo); // 调用辅助函数解析 SET 子句
-    if (updates.empty() && !setClause.empty()) {
-        // 如果 parseSetClause 返回空 map，但 setClause 不为空，说明 SET 子句解析或验证失败
-        std::cerr << "Error updating data: Failed to parse or validate SET clause." << std::endl;
-        return false; // SET 子句无效，更新失败
+    // 找主键索引
+    int primaryKeyIndex = -1;
+    std::map<std::string, int> columnIndexMap;
+    for (int i = 0; i < columnsInfo.size(); ++i) {
+        columnIndexMap[columnsInfo[i].fieldName] = i;
+        if (columnsInfo[i].fieldName == primaryKeyName) {
+            primaryKeyIndex = i;
+        }
     }
-    if (updates.empty()) {
-        // 如果 SET 子句为空或解析后没有有效的更新对 (例如 SET col = , )
-        std::cerr << "Warning: No valid columns specified in SET clause for update. Update operation cancelled." << std::endl;
-        // 没有要更新的内容，但语法上是有效的。这里选择返回 false，因为期望的更新操作没有执行。
+
+    if (primaryKeyIndex == -1) {
+        std::cerr << "Error: Primary key '" << primaryKeyName << "' not found." << std::endl;
         return false;
     }
 
+    std::string dataFilePath = buildFilePath(dbName, tableName);
+    std::string tempFilePath = dataFilePath + ".tmp";
 
-    // 4. WHERE 子句的解析工作已由调用方完成，whereTree 参数直接传入。
-    //    如果 whereTree 是 nullptr，evaluateWhereClauseTree 会处理为更新所有行。
-
-    // 5. 构建数据文件和临时文件路径
-    std::string dataFilePath = "../../res/" + tableName + ".data.txt"; // 原始数据文件路径
-    std::string tempFilePath = dataFilePath + ".tmp"; // 临时文件路径
-
-    // 6. 打开原始数据文件进行读取
-    std::ifstream dataFile(dataFilePath);
-    if (!dataFile.is_open()) {
-        // 如果数据文件不存在，没有行可以更新。这不是错误，只是没有行被更新。
-        std::cout << "Info: Data file '" << dataFilePath << "' not found. No rows to update." << std::endl; // 信息提示
-        return true; // 成功完成 (0 行被更新)
+    std::ifstream inFile(dataFilePath);
+    std::ofstream outFile(tempFilePath);
+    if (!inFile.is_open() || !outFile.is_open()) {
+        std::cerr << "Error: Failed to open file for update." << std::endl;
+        return false;
     }
 
-    // 7. 创建并打开临时文件进行写入
-    std::ofstream tempFile(tempFilePath);
-    if (!tempFile.is_open()) {
-        std::cerr << "Error updating data: Failed to create temporary file '" << tempFilePath << "' for writing." << std::endl;
-        dataFile.close(); // 创建临时文件失败，关闭输入文件
-        return false; // 创建文件失败，更新失败
-    }
-
-    // 8. 逐行处理原始文件，写入临时文件
     std::string line;
-    int updatedRowCount = 0; // 记录实际更新的行数
-    int totalRowCount = 0;   // 记录总行数 (用于错误提示)
-
-    while (std::getline(dataFile, line)) { // 逐行读取原始文件
-        totalRowCount++;
-        std::vector<std::string> rowValues = splitString(line, ','); // 分割当前行的字段值
-
-        // 在处理前，检查当前行的字段数量是否与表的列数一致，避免处理格式错误的数据行
+    bool updated = false;
+    while (std::getline(inFile, line)) {
+        std::vector<std::string> rowValues = splitString(line, ',');
         if (rowValues.size() != columnsInfo.size()) {
-            std::cerr << "Warning: Skipping processing for row " << totalRowCount << " in '" << tableName << ".data.txt' due to unexpected number of columns ("
-                      << rowValues.size() << " instead of " << columnsInfo.size() << "). This row will be copied as is and cannot be updated." << std::endl;
-            tempFile << line << std::endl; // 将格式错误的原样复制到临时文件
-            continue; // 跳过此行的更新逻辑
+            outFile << line << "\n"; // 保持原样
+            continue;
         }
 
-        // 9. 使用传入的 WHERE AST 判断当前行是否需要更新
-        if (evaluateWhereClauseTree(whereTree, rowValues, columnsInfo)) {
-            // 10. 如果 evaluateWhereClauseTree 返回 true，表示当前行符合 WHERE 条件，需要更新
-            std::vector<std::string> updatedRowValues = rowValues; // 复制原始行值，在此基础上修改
-
-            for (const auto& pair : updates) { // 遍历 SET 子句解析出的更新对
-                int colIndex = pair.first;     // 要更新的列的索引
-                const std::string& newValue = pair.second; // 新值 (字符串形式)
-
-                // colIndex 在 parseSetClause 中已经验证过是否小于 columnsInfo.size()
-                // rowValues.size() 在上面已经验证过是否等于 columnsInfo.size()
-                // 所以理论上 colIndex 应该小于 updatedRowValues.size()
-                if (colIndex < updatedRowValues.size()) { // 防御性检查
-                    updatedRowValues[colIndex] = newValue; // 应用更新：将新值赋给对应列
-                } else {
-                    // 内部错误，更新索引越界
-                    std::cerr << "Internal Error: Update column index " << colIndex << " out of bounds when applying SET clause for row " << totalRowCount << "." << std::endl;
-                    // 记录错误，但继续处理当前行和后续行
+        if (rowValues[primaryKeyIndex] == primaryKeyValue) {
+            for (const auto& [colName, newVal] : setMap) {
+                if (columnIndexMap.count(colName)) {
+                    rowValues[columnIndexMap[colName]] = newVal;
                 }
             }
-
-            // 11. 将更新后的行写入临时文件
-            tempFile << joinRowValues(updatedRowValues) << std::endl; // 将修改后的行连接成字符串并写入文件
-            updatedRowCount++; // 更新计数器
-
-        } else {
-            // 12. 如果 evaluateWhereClauseTree 返回 false，表示当前行不符合 WHERE 条件，不需要更新
-            tempFile << line << std::endl; // 将原始行原样复制到临时文件
+            updated = true;
         }
+
+        outFile << joinRowValues(rowValues) << "\n";
     }
 
-    // 13. 关闭文件
-    dataFile.close(); // 关闭原始文件
-    tempFile.close(); // 关闭临时文件
+    inFile.close();
+    outFile.close();
 
-    // 检查临时文件是否成功写入
-    if (tempFile.fail()) {
-        std::cerr << "Error updating data: Failed writing to temporary file '" << tempFilePath << "'." << std::endl;
-        // 尝试清理部分写入的临时文件
-        try { fs::remove(tempFilePath); } catch(const fs::filesystem_error& e) {
-            std::cerr << "Error cleaning up temporary file: " << e.what() << std::endl;
-        }
-        return false; // 写入失败，更新失败
-    }
-
-
-    // 14. 用临时文件替换原始数据文件
-    try {
-        // 在替换之前，确保临时文件存在（如果原始文件不存在或为空且WHERE不匹配，tempFile 可能为空）
-        // 实际上，上面的循环逻辑会确保 tempFile 包含所有（或部分有效）行，除非原始文件不存在。
-        // fs::exists(tempFilePath) 是一个安全的检查。
-        if (fs::exists(tempFilePath)) {
-            fs::remove(dataFilePath); // 删除原始数据文件
-            fs::rename(tempFilePath, dataFilePath); // 将临时文件重命名为原始文件名
-        } else {
-            // 这种情况比较异常，可能原始文件不存在（已经在上面处理），或者发生了其他文件系统错误
-            // 如果 updatedRowCount > 0 但 tempFilePath 不存在，那是内部错误
-            if (updatedRowCount > 0) {
-                std::cerr << "Internal Error: Updated rows count > 0, but temporary file '" << tempFilePath << "' does not exist after processing." << std::endl;
-                return false; // 内部错误，更新失败
-            }
-            // 如果 updatedRowCount == 0 且 tempFilePath 不存在，说明没有行被处理或匹配 WHERE。
-            // 如果原始文件存在，它应该被保留。如果原始文件不存在，那它本来就不存在。
-            // 这个分支在 updatedRowCount == 0 时，如果文件系统操作没有异常，意味着成功执行了0更新。
-        }
-
-    } catch (const fs::filesystem_error& e) {
-        std::cerr << "Error updating data: Filesystem error during file replacement: " << e.what() << std::endl;
-        // 如果重命名失败，临时文件可能仍然存在。尝试清理它。
-        try { fs::remove(tempFilePath); } catch(const fs::filesystem_error& e2) {
-            std::cerr << "Error cleaning up temporary file after rename failure: " << e2.what() << std::endl;
-        }
-        // 原始文件可能已经被删除了。文件系统操作失败，更新失败。
+    if (!updated) {
+        std::cerr << "Warning: No matching row with primary key = " << primaryKeyValue << std::endl;
+        std::remove(tempFilePath.c_str());
         return false;
     }
 
-    // 15. 如果有行被更新，则更新表的元数据 (最后修改时间)
-    if (updatedRowCount > 0) {
-        updateTableLastModifiedDate(dbName, tableName); // 更新最后修改时间 (记录数不因更新而改变)
-        std::cout << "Successfully updated " << updatedRowCount << " rows in table '" << tableName << "'." << std::endl;
-    } else {
-        // 如果没有行符合 WHERE 条件，也没有更新发生。这不算是错误。
-        std::cout << "No rows matched the WHERE clause. No updates performed in table '" << tableName << "'." << std::endl;
-    }
+    std::remove(dataFilePath.c_str());
+    std::rename(tempFilePath.c_str(), dataFilePath.c_str());
 
-    return true; // 更新操作成功完成 (无论是否有行被更新)
+    updateTableLastModifiedDate(dbName, tableName);
+    return true;
+
 }

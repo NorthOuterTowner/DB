@@ -6,29 +6,32 @@
 #include <variant>
 #include<tablemanage.h>
 #include <fieldmanage.h>
+#include <dbManager.h>
 
 struct Node;//前向声明
- std::string buildFilePath(const std::string& dbName, const std::string& tableName) ;
+
 
 class datamanager
 {
 public:
-    datamanager();
+    datamanager(dbManager* dbMgr);
+    std::string getCurrentDatabase() const;//使其他模块访问当前数据库
+
+    //std::string buildFilePath(const std::string& tableName);
+    std::string buildFilePath(const std::string& dbName,const std::string& tableName);
 
     bool insertData(const std::string& dbName,const std::string& tableName,const std::vector<std::string>& values);
-    bool deleteData(const std::string& dbName, const std::string& tableName, const std::vector<int>& rowIndicesToDelete);
-    std::vector<std::vector<std::string>>selectData(
-        const std::string& dbName,
-        const std::string& tableName,
+    bool deleteData(const std::string& dbName,const std::string& tableName,const std::string& primaryKeyValue ) ;
+
+    std::vector<std::vector<std::string>>selectData(const std::string& dbName,const std::string& tableName,
         const std::vector<std::string>& columnsToSelect, // 要选择的列名列表 (空表示选择所有列)
         const std::shared_ptr<Node>& whereTree  // WHERE 子句的 AST 根节点 (由调用方解析并传入，可能为 nullptr)
         );
-    bool updateData(
-        const std::string& dbName,
-        const std::string& tableName,
-        const std::string& setClause,    // SET 子句字符串 (例如 "column1=value1, column2=value2")
-        const std::shared_ptr<Node>& whereTree // WHERE 子句的 AST 根节点 (由调用方解析并传入，可能为 nullptr)
-        ) ;
+    bool updateData( const std::string& dbName,
+                                 const std::string& tableName,
+                                 const std::map<std::string, std::string>& setMap,
+                                 const std::string& primaryKeyName,
+                    const std::string& primaryKeyValue);
 
     //获取表信息
     tableManage::TableInfo getTableInfo(const std::string& dbName, const std::string& tableName);
@@ -73,6 +76,7 @@ std::string joinRowValues(const std::vector<std::string>& rowValues) ;
 private:
     tableManage tableMgr;
     fieldManage fieldMgr;
+    dbManager* dbMgr;
 
 
 
