@@ -41,15 +41,26 @@ std::shared_ptr<Node> parseWhereClause(const std::string& whereStr);
 
 // 解析单个条件
 std::shared_ptr<Node> Lexer::parseCondition(const std::string& conditionStr) {
-    std::regex conditionPattern(R"((\w+)\s*([=<>!]+)\s*('[^']*'|\w+))");
+    std::regex conditionPattern(R"((\w+)\s*([=<>!]+)\s*('[^']*'|\w+))", std::regex::icase);
     std::smatch match;
+
     if (std::regex_search(conditionStr, match, conditionPattern)) {
         Condition condition;
-        condition.column = match[1].str();
-        condition.op = match[2].str();
-        condition.value = match[3].str();
+        condition.column = match[1].str();  // 获取列名
+        condition.op = match[2].str();      // 获取运算符
+        condition.value = match[3].str();   // 获取值
+
+        // 打印调试信息
+        std::cout << "Parsed condition: "
+                  << "column: " << condition.column
+                  << ", operator: " << condition.op
+                  << ", value: " << condition.value << std::endl;
+
         return std::make_shared<Node>(condition);
     }
+
+    // 如果没有匹配条件，打印并返回 nullptr
+    std::cout << "Invalid condition: " << conditionStr << std::endl;
     return nullptr;
 }
 
@@ -92,27 +103,61 @@ std::shared_ptr<Node> Lexer::parseWhereClause(const std::string& whereStr) {
 //where嵌套时括号优先
 std::vector<std::string> Lexer::tokenize(const std::string& str) {
     std::vector<std::string> tokens;
-    std::regex token_pattern(R"(\s*([()])\s*|\s*(AND|OR|=|<>|<|>|<=|>=)\s*|\s*([\w\.']+)\s*)", std::regex::icase);
+
+    // 修复后的正则表达式：处理括号、操作符、字符串、数字和标识符
+    std::regex token_pattern(
+        R"((\()|(\))|(AND|OR|<>|<=|>=|=|<|>)|('[^']*')|(\d+)|([a-zA-Z_][a-zA-Z0-9_]*))",
+        std::regex::icase
+        );
+
     auto begin = std::sregex_iterator(str.begin(), str.end(), token_pattern);
     auto end = std::sregex_iterator();
 
     for (auto it = begin; it != end; ++it) {
-        for (int i = 1; i < it->size(); ++i) {
-            if ((*it)[i].matched) {
-                std::string token = (*it)[i].str();
-                std::transform(token.begin(), token.end(), token.begin(), ::toupper);
-                tokens.push_back(token);
-                break;
-            }
-        }
+        std::string token = it->str();
+        // 逻辑关键字统一为大写
+        if (token == "and" || token == "AND") token = "AND";
+        else if (token == "or" || token == "OR") token = "OR";
+        tokens.push_back(token);
     }
+
     return tokens;
 }
 
 std::shared_ptr<Node> Lexer::parsWhereClause(const std::string& whereClause) {
-    std::vector<std::string> tokens = tokenize(whereClause);
+    std::string cleaned = whereClause;
+    std::cout << "[DEBUG] Raw WHERE clause: " << whereClause << std::endl;
+    if (!cleaned.empty() && cleaned.back() == ';') {
+        cleaned.pop_back();  // 去掉结尾分号
+    }
+
+    std::vector<std::string> tokens = tokenize(cleaned);
+    std::cout << "Tokens parsed from WHERE clause:\n";
+    for (const auto& token : tokens) {
+        std::cout << "[" << token << "] ";
+    }
+    std::cout << std::endl;
+    if (tokens.empty()) {
+        throw std::runtime_error("Invalid WHERE clause: no tokens found");
+        }
+
     int pos = 0;
-    return parsExpression(tokens, pos);
+    auto node = parsExpression(tokens, pos);
+
+    // 防止遗漏括号等错误
+    if (pos < tokens.size()) {
+        std::stringstream error_msg;
+        error_msg << "Unexpected tokens after valid expression: ";
+        for (size_t i = pos; i < tokens.size(); ++i) {
+            error_msg << tokens[i] << " ";
+        }
+        throw std::runtime_error(error_msg.str());
+    }
+
+    //std::vector<std::string> tokens = tokenize(cleaned);
+
+
+    return node;
 }
 
 
@@ -152,21 +197,35 @@ std::shared_ptr<Node> Lexer::parseTerm(std::vector<std::string>& tokens, int& po
 
 // 处理括号或基本条件
 std::shared_ptr<Node> Lexer::parseFactor(std::vector<std::string>& tokens, int& pos) {
+    if (pos >= tokens.size()) {
+        throw std::runtime_error("Unexpected end of tokens in WHERE clause");
+    }
+
     if (tokens[pos] == "(") {
         ++pos; // 跳过 (
         auto node = this->parsExpression(tokens, pos);
-        if (tokens[pos] != ")") {
+        if (pos >= tokens.size() || tokens[pos] != ")") {
             throw std::runtime_error("Missing closing parenthesis");
         }
         ++pos; // 跳过 )
         return node;
     } else {
         // 是一个基本条件：col op val
+        std::cout << "tokens size = " << tokens.size() << ", pos = " << pos << std::endl;
         if (pos + 2 >= tokens.size()) {
-            throw std::runtime_error("Invalid condition in WHERE clause");
+            throw std::runtime_error("Invalid condition in WHERE clause (not enough tokens)");
         }
-        Condition cond{tokens[pos], tokens[pos + 1], tokens[pos + 2]};
-        pos += 3;
+
+        std::string col = tokens[pos++];
+        std::string op = tokens[pos++];
+        std::string val = tokens[pos++];
+
+        for (const auto& t : tokens) {
+            std::cout << "[" << t << "] ";
+        }
+        std::cout << std::endl;
+
+        Condition cond{col, op, val};
         return std::make_shared<Node>(cond);
     }
 }
@@ -425,90 +484,85 @@ std::map<std::string, SQLVal> Lexer::parseUse(const std::string& sql){
 
 
 std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
-    std::map<std::string, SQLVal> result = { {"type", "SELECT"}, {"status", false} };
+    std::map<std::string,SQLVal>result = {{"type","SELECT"},{"status","false"}};
 
     std::string dbName=getCurrentDatabase();
     if(dbName.empty()){
         throw std::runtime_error("No database selected.");
     }
-    // 子句分隔使用非贪婪匹配，确保各子句正确解析
+
     std::regex pattern(
-        R"(SELECT\s+([\w,\s]+)\s+FROM\s+(\w+)(?:\s+WHERE\s+([^GROUP]+?))?(?:\s+GROUP\s+BY\s+([^HAVING]+?))?(?:\s+HAVING\s+([^ORDER]+?))?(?:\s+ORDER\s+BY\s+([^;]+?))?)",
-        ICASE | std::regex::optimize
-        );
+        R"(SELECT\s+(\*|[\w\s,]+)\s+FROM\s+(\w+)(?:\s+WHERE\s+([^\n;]+))?(?:\s+ORDER\s+BY\s+([^\n;]+))?)",
+        std::regex::icase                );
     std::smatch match;
 
     if (!std::regex_search(sql, match, pattern)) {
-        return result; // 解析失败直接返回
+        return result; // 无法解析
     }
 
     result["status"] = true;
 
-    // 1. 解析列名（去除多余空格，不支持AS别名）
+    // 1. 解析列名（支持 *）
+    std::string columnsStr = utils::strip(match[1].str());
     std::vector<std::string> columns;
-    std::string columnsStr = match[1].str();
-    std::vector<std::string> rawColumns = split(columnsStr, ",");
-    for (auto& col : rawColumns) {
-        col = utils::strip(col); // 去除前后空格
-        if (!col.empty()) {
-            columns.push_back(col);
+    if (columnsStr == "*") {
+        columns = {}; // 空数组代表 SELECT *
+    } else {
+        std::vector<std::string> rawColumns = split(columnsStr, ",");
+        for (auto& col : rawColumns) {
+            col = utils::strip(col);
+            if (!col.empty()) {
+                columns.push_back(col);
+            }
         }
     }
     result["columns"] = columns;
 
     // 2. 解析表名
-    result["table"] = match[2].str();
+    result["table"] = utils::strip(match[2].str());
 
-    // 3. 解析WHERE条件（使用带括号的解析器）
+    // 3. 解析 WHERE 子句（使用括号解析器）
     if (match[3].matched) {
-        result["where"] = parsWhereClause(match[3].str()); // 关键：使用parsWhereClause处理括号
+        std::string whereStr = utils::strip(match[3].str());
+        std::cout << "[DEBUG] Raw WHERE clause: " << whereStr << std::endl;
+        result["whereTree"] = parsWhereClause(whereStr);
     }
 
-    // 4. 解析GROUP BY（仅存储列名列表）
+    // 4. 解析 ORDER BY 子句
     if (match[4].matched) {
-        std::string groupByStr = match[4].str();
-        std::vector<std::string> groupByColumns = split(groupByStr, ",");
-        for (auto& col : groupByColumns) {
-            col = utils::strip(col);
-        }
-        result["group_by"] = groupByColumns;
-    }
-
-    // 5. 解析HAVING条件（暂存原始字符串，后续需扩展解析）
-    if (match[5].matched) {
-        result["having"] = match[5].str();
-    }
-
-    // 6. 解析ORDER BY（提取列名和排序方向）
-    if (match[6].matched) {
         std::vector<SortRule> sortRules;
-        std::string orderByStr = match[6].str();
+        std::string orderByStr = match[4].str();
         std::vector<std::string> orderTokens = split(orderByStr, ",");
         for (auto& token : orderTokens) {
             token = utils::strip(token);
             if (token.empty()) continue;
 
             SortRule rule;
-            size_t spacePos = token.find_last_of(" \t"); // 查找最后一个空格，区分列名和排序关键字
+            size_t spacePos = token.find_last_of(" \t"); // 查找排序关键字
             if (spacePos != std::string::npos) {
                 std::string col = token.substr(0, spacePos);
                 std::string order = token.substr(spacePos + 1);
-                rule.column = col;
-                rule.isAscending = (order == "ASC" || order.empty()); // 默认升序
+                rule.column = utils::strip(col);
+                rule.isAscending = (order == "ASC" || order.empty());
             } else {
                 rule.column = token;
-                rule.isAscending = true; // 无关键字默认升序
+                rule.isAscending = true; // 默认升序
             }
             sortRules.push_back(rule);
         }
         result["order_by"] = sortRules;
     }
 
-    // 移除分页参数（确保无LIMIT）
-    result.erase("limit");
+    std::cout << "[DEBUG] Full SQL: " << sql << std::endl;
+    if (match[3].matched) {
+        std::cout << "[DEBUG] WHERE match: " << match[3].str() << std::endl;
+    }
 
     return result;
 }
+
+
+
 
 std::map<std::string, SQLVal> Lexer::parseGrant(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("GRANT")}, {"status", false} };
