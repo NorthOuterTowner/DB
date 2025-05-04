@@ -8,6 +8,8 @@
 #include <QTreeWidget>
 #include <vector>
 #include <string>
+#include "affair.h"
+
 
 class dbManager {
 public:
@@ -30,6 +32,7 @@ public:
     std::vector<std::string> getDatabaseTables(const std::string& dbName);
     void loadTableDescriptions();//加载数据库下列表的函数
     std::vector<std::string> split(const std::string& s, const std::string& delimiter);
+    void backupDatabaseMetadata();
 
 private:
     struct DatabaseInfo {
@@ -46,6 +49,7 @@ private:
     std::string currentDatabase; // 记录当前使用的数据库名称
     std::map<std::string, std::vector<std::string>> databaseTables;// 存储每个数据库拥有的表名
     // 在 dbManager.h 中添加函数声明
+    Affair affair; // 声明 Affair 类型的成员变量
 
 };
 

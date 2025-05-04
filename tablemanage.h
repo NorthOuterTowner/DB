@@ -12,6 +12,7 @@
 #include <fstream>
 #include <filesystem>
 #include "fieldmanage.h"
+#include "affair.h"
 
 class tableManage {
 public:
@@ -43,6 +44,8 @@ public:
     //获取表信息
     TableInfo getTableInfo(const std::string& dbName,const std::string& tableName);
 
+    //void backupTable(const std::string& dbName, const std::string& tableName);
+
 
 private:
 
@@ -50,6 +53,7 @@ private:
     std::string tableDescFile; // 表描述文件路径
     // 字符串分割函数
     std::vector<std::string> split(const std::string& s, const std::string& delimiter);
+    Affair affair; // 声明 Affair 类型的成员变量
 };
 
 #endif

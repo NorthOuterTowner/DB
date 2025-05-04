@@ -1,17 +1,52 @@
 #include "fieldmanage.h"
+#include "logger.h" // 引入 Logger
+#include "session.h" // 引入 Session
 #include <chrono>
 #include <iomanip>
 #include <sstream>
 
-fieldManage::fieldManage() {}
+fieldManage::fieldManage() : affair("undo.txt") {
+    // 构造函数初始化 affair
+}
+
+
+// 在 fieldManage 类中添加备份表定义文件的函数
+void fieldManage::backupTableDefFile(const std::string& tableName) {
+    std::string tableDefFile = getTableDefFilePath(tableName);
+    std::string backupTableDefFile = "../../res/backup/" + tableName + "_tdf_backup.txt";
+    QFile defFile(QString::fromStdString(tableDefFile));
+    QFile backupDefFile(QString::fromStdString(backupTableDefFile));
+
+    if (defFile.open(QIODevice::ReadOnly | QIODevice::Text) && backupDefFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream in(&defFile);
+        QTextStream out(&backupDefFile);
+        out << in.readAll();
+        defFile.close();
+        backupDefFile.close();
+    }
+}
 
 bool fieldManage::addField(const std::string& dbName, const std::string& tableName, const std::string& fieldName, int fieldOrder, const std::string& fieldType, int fieldTypeParams, const std::string& modificationTime, const std::string& constraints) {
+
+    //备份
+    backupTableDefFile(tableName);
+
+    // 记录事务操作
+    QString sql = QString("ALTER TABLE %1.%2 ADD COLUMN %3 ...;").arg(QString::fromStdString(dbName)).arg(QString::fromStdString(tableName)).arg(QString::fromStdString(fieldName));
+    affair.writeToUndo(sql);
+
+
     FieldInfo info(dbName, tableName, fieldName, fieldOrder, fieldType, fieldTypeParams, modificationTime, constraints);
 
     if (!isFieldNameValid(info.fieldName)) {
         std::cerr << "Invalid field name: " << info.fieldName << std::endl;
         return false;
     }
+
+    // 日志记录字段添加操作，包含数据库和表名*
+    Logger logger("../../res/system_logs.txt"); // 指定日志文件路径
+    logger.log(Session::getCurrentUserId(), "ADD", "FIELD", fieldName + " to " + tableName + " in " + dbName); // 记录日志
+
 
     if (!updateTableDescAndDefFiles(info, "ADD")) {
         return false;
@@ -207,12 +242,36 @@ std::vector<std::string> fieldManage::split(const std::string& s, const std::str
 
 // 新增删除字段的方法
 bool fieldManage::dropField(const std::string& dbName, const std::string& tableName, const std::string& fieldName) {
+    //备份
+    backupTableDefFile(tableName);
+
+    // 记录事务操作
+    QString sql = QString("ALTER TABLE %1.%2 DROP COLUMN %3;").arg(QString::fromStdString(dbName)).arg(QString::fromStdString(tableName)).arg(QString::fromStdString(fieldName));
+    affair.writeToUndo(sql);
+
     FieldInfo info(dbName, tableName, fieldName, 0, "", 0, "", "");
+
+    // 日志记录字段删除操作，包含数据库和表名
+    Logger logger("../../res/system_logs.txt");
+    logger.log(Session::getCurrentUserId(), "DROP", "FIELD", fieldName + " from " + tableName + " in " + dbName); // 记录日志
+
     return updateTableDescAndDefFiles(info, "DROP");
 }
 
 // 新增修改字段的方法
 bool fieldManage::modifyField(const std::string& dbName, const std::string& tableName, const std::string& fieldName, int fieldOrder, const std::string& fieldType, int fieldTypeParams, const std::string& constraints) {
+
+    //备份
+    backupTableDefFile(tableName);
+
+    // 记录事务操作
+    QString sql = QString("ALTER TABLE %1.%2 MODIFY COLUMN %3 ...;").arg(QString::fromStdString(dbName)).arg(QString::fromStdString(tableName)).arg(QString::fromStdString(fieldName));
+    affair.writeToUndo(sql);
+
+    // 日志记录字段修改操作，包含数据库和表名
+    Logger logger("../../res/system_logs.txt");
+    logger.log(Session::getCurrentUserId(), "MODIFY", "FIELD", fieldName + " in " + tableName + " of " + dbName); // 记录日志
+
     std::string tableDefFile = getTableDefFilePath(tableName);
     QFile defFile(QString::fromStdString(tableDefFile));
     if (!defFile.open(QIODevice::ReadOnly | QIODevice::Text)) {

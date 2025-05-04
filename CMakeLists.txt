@@ -61,6 +61,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         server.h server.cpp
         highsettings.h highsettings.cpp highsettings.ui
         datamanager.h datamanager.cpp
+        session.h session.cpp
+        logger.h logger.cpp
     )
 
     qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

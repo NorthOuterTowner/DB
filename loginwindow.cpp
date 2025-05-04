@@ -1,13 +1,16 @@
 #include "loginwindow.h"
+#include "loginwindow.h"
+#include "logger.h"
 #include "./ui_loginwindow.h"
 #include "usermanage.h"
 #include "mainwindow.h"
+#include "session.h"
 #include <QMessageBox>
 #include <QDebug>
 #include <QSettings>
 #include "highsettings.h"
 #include "server.h"
-#include "iostream"
+#include <iostream>
 
 loginwindow::loginwindow(QWidget *parent)
     : QMainWindow(parent)
@@ -30,7 +33,7 @@ loginwindow::loginwindow(QWidget *parent)
         ui->user_line->setText(QString::fromStdString(user->first));
         ui->code_line->setText(QString::fromStdString(user->second));
     }
-    
+
     ui->code_line->setEchoMode(QLineEdit::Password); // 密码输入模式
     //ui->code_line->clear(); // 清空初始密码显示
 
@@ -70,20 +73,46 @@ loginwindow::~loginwindow()
     delete ui;
 }
 
+// 定义类的成员函数
+QString loginwindow::getIPAddress() {
+    QString ipAddress;
+    QList<QHostAddress> ipAddressesList = QNetworkInterface::allAddresses();
+    // 获取第一个非本地地址的 IPv4 地址
+    for (int i = 0; i < ipAddressesList.size(); ++i) {
+        if (ipAddressesList.at(i) != QHostAddress::LocalHost &&
+            ipAddressesList.at(i).toIPv4Address()) {
+            ipAddress = ipAddressesList.at(i).toString();
+            break;
+        }
+    }
+    // 如果没有找到非本地地址的 IPv4 地址，则使用本地地址
+    if (ipAddress.isEmpty())
+        ipAddress = QHostAddress(QHostAddress::LocalHost).toString();
+    return ipAddress;
+}
+
 void loginwindow::on_button_signin_clicked()
 {
     QString username = ui->user_line->text();
     QString password = ui->code_line->text();
     user->first = username.toStdString();
-    user->second = username.toStdString();
+
+    //这里好像错了，应该把password赋值
+    //user->second = username.toStdString();
+    user->second = password.toStdString();
+
     if(username.isEmpty() || password.isEmpty()) {
         return;
     }
 
     if(UserManage::findUser(username.toStdString(), password.toStdString())) {
+
+        //添加此句用于数据库和表等操作时的日志记录
+        Session::setCurrentUserId(username.toStdString()); // 这里设置当前用户 ID
+
         QSettings settings("MyDBMS", "LoginSettings");
         bool remember = settings.value("remember", false).toBool();
-        
+
         if (remember) {
             settings.setValue("username", username);
             settings.setValue("password", password);
@@ -91,7 +120,12 @@ void loginwindow::on_button_signin_clicked()
             settings.remove("username");
             settings.remove("password");
         }
-        
+
+        // 记录登录日志
+        Logger logger("../../res/system_logs.txt");
+        QString ip = getIPAddress();
+        logger.logLogin(username.toStdString(), ip.toStdString());
+
         MainWindow *mainWin = new MainWindow();
         mainWin->show();
         this->close();
@@ -116,6 +150,12 @@ void loginwindow::on_user_line_textChanged(const QString &arg1)
 
 void loginwindow::on_button_exit_clicked()
 {
+    std::string userId = Session::getCurrentUserId();
+    if (!userId.empty()) {
+        Logger logger("../../res/system_logs.txt");
+        QString ip = getIPAddress();
+        logger.logLogout(userId, ip.toStdString());
+    }
     QApplication::exit(0);
 }
 
@@ -125,4 +165,3 @@ void loginwindow::on_button_register_2_clicked()
     HighSettings *h = new HighSettings();
     h->show();
 }
-

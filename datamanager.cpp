@@ -1,11 +1,31 @@
 #include "datamanager.h"
+#include "affair.h"
+#include "logger.h"
+#include "session.h"
 #include <fstream>
 #include <iostream>
 #include <sstream>
 
 
-datamanager::datamanager() {}
+datamanager::datamanager() : affair("undo.txt") {
+    // 构造函数初始化 affair
+}
 
+/*// 在 datamanager 类中添加备份数据文件的函数
+void datamanager::backupDataFile(const std::string& dbName, const std::string& tableName) {
+    std::string dataFilePath = buildFilePath(dbName, tableName);
+    std::string backupDataFilePath = "../../res/backup/" + tableName + "_data_backup.txt";
+    QFile dataFile(QString::fromStdString(dataFilePath));
+    QFile backupDataFile(QString::fromStdString(backupDataFilePath));
+
+    if (dataFile.open(QIODevice::ReadOnly | QIODevice::Text) && backupDataFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream in(&dataFile);
+        QTextStream out(&backupDataFile);
+        out << in.readAll();
+        dataFile.close();
+        backupDataFile.close();
+    }
+}*/
 
 
 bool datamanager::tryStringtoInt(const std::string& s,int& out){
@@ -38,25 +58,38 @@ bool datamanager::tryStringtoDouble(const std::string& s,double& out){
     }
 }
 
-bool datamanager::tryStringtoBool(const std::string& s,bool& out){
-    //简化处理：接收 true、false、1、0
+bool datamanager::tryStringtoBool(const std::string& s, bool& out) {
+    // 简化处理：接收 true、false、1、0
     std::string lower_s;
     lower_s.resize(s.size());
-    std::transform(s.begin(),s.end(),s.begin(),::tolower);
+    // 将转换结果存储到 lower_s 中
+    std::transform(s.begin(), s.end(), lower_s.begin(), ::tolower);
 
-    if(lower_s=="true"||lower_s =="1"){
-        out=true;
+    if (lower_s == "true" || lower_s == "1") {
+        out = true;
         return true;
-    }else if(lower_s=="false"||lower_s=="0"){
-        out=false;
+    } else if (lower_s == "false" || lower_s == "0") {
+        out = false;
         return true;
     }
     return false;
-
 }
 
 
 bool datamanager::insertData(const std::string& dbName,const std::string& tableName,const std::vector<std::string>& values){
+    // 记录事务操作
+    QString sql = QString("INSERT INTO %1 VALUES (").arg(QString::fromStdString(tableName));
+    for (size_t i = 0; i < values.size(); ++i) {
+        sql += QString("'%1'").arg(QString::fromStdString(values[i]));
+        if (i < values.size() - 1) {
+            sql += ", ";
+        }
+    }
+    sql += ");";
+    affair.writeToUndo(sql);
+
+
+
     // 获取表信息
     tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
     if (tableInfo.table_name.empty()) {
@@ -96,10 +129,16 @@ bool datamanager::insertData(const std::string& dbName,const std::string& tableN
     dataFile.close();
 
     // 更新表的记录数
-    updateTableRecordCount(dbName, tableName, 1);
+    //updateTableRecordCount(dbName, tableName, 1);
 
     // 更新表的最后修改时间
-    updateTableLastModifiedDate(dbName, tableName);
+    //updateTableLastModifiedDate(dbName, tableName);
+
+
+    // 记录插入操作的日志
+    Logger logger("../../res/system_logs.txt");
+    logger.log(Session::getCurrentUserId(), "INSERT", "DATA", "Inserted values into " + tableName + " in " + dbName); // 记录日志
+
 
     return true;
 }
@@ -182,3 +221,5 @@ bool datamanager::validateInsertData(const tableManage::TableInfo& tableInfo,con
 
 
 }
+
+

@@ -6,6 +6,7 @@
 #include <variant>
 #include<tablemanage.h>
 #include <fieldmanage.h>
+#include "affair.h"
 
 
 
@@ -13,6 +14,8 @@ class datamanager
 {
 public:
     datamanager();
+
+    //void backupDataFile(const std::string& dbName, const std::string& tableName);
 
     bool insertData(const std::string& dbName,const std::string& tableName,const std::vector<std::string>& values);
     //获取表信息
@@ -28,13 +31,14 @@ public:
 
 
 
-    void updateTableRecordCount(const std::string& dbName, const std::string& tableName, int count);
-    void updateTableLastModifiedDate(const std::string& dbName, const std::string& tableName);
+    //void updateTableRecordCount(const std::string& dbName, const std::string& tableName, int count);
+    //void updateTableLastModifiedDate(const std::string& dbName, const std::string& tableName);
 
 
 private:
     tableManage tableMgr;
     fieldManage fieldMgr;
+    Affair affair; // 声明 Affair 类型的成员变量
 
 
 
