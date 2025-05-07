@@ -908,6 +908,9 @@ std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
       {std::regex(R"(^ALTER\s)", ICASE), [this](const std::string& sql) { return parseAlter(sql, tableMgr); }},
       {std::regex(R"(^SHOW\s)", ICASE), [this](const std::string& sql) { return parseShow(sql); }},
       {std::regex(R"(^UPDATE\s)", ICASE), [this](const std::string& sql) { return parseUpdate(sql); }},
+      {std::regex(R"(^START\s)", ICASE), [this](const std::string& sql) { return parseStart(sql); }},
+      {std::regex(R"(^ROLLBACK\s)", ICASE), [this](const std::string& sql) { return parseRollback(sql); }},
+      {std::regex(R"(^COMMIT\s)", ICASE), [this](const std::string& sql) { return parseCommit(sql); }},
       {std::regex(R"(^DELETE\s)", ICASE), [this](const std::string& sql) { return parseDelete(sql); }},
       {std::regex(R"(^DESCRIBE\s)", ICASE), [this](const std::string& sql) { return parseDescribe(sql); }},
         {std::regex(R"(^RECOVER\s)", ICASE), [this](const std::string& sql) { return parseRecover(sql); }}
