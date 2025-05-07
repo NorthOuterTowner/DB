@@ -52,7 +52,7 @@ void Affair::writeToUndo(const QString& sql) {
         QString whereClause;
         for (const auto& [column, value] : operation) {
             if (column != "type" && column != "table") {
-                whereClause += QString("%1 = '%2' AND ").arg(column.c_str()).arg(value.c_str());
+                whereClause += QString("%1 = %2 AND ").arg(column.c_str()).arg(value.c_str());
             }
         }
         whereClause.chop(5); // 去掉多余的 " AND "
@@ -65,9 +65,9 @@ void Affair::writeToUndo(const QString& sql) {
         for (const auto& [column, value] : operation) {
             if (column != "type" && column != "table") {
                 if (column.find("old_") == 0) {
-                    setClause += QString("%1 = '%2', ").arg(column.substr(4).c_str()).arg(value.c_str());
+                    setClause += QString("%1 = %2, ").arg(column.substr(4).c_str()).arg(value.c_str());
                 } else {
-                    whereClause += QString("%1 = '%2' AND ").arg(column.c_str()).arg(value.c_str());
+                    whereClause += QString("%1 = %2 AND ").arg(column.c_str()).arg(value.c_str());
                 }
             }
         }
@@ -82,7 +82,7 @@ void Affair::writeToUndo(const QString& sql) {
         for (const auto& [column, value] : operation) {
             if (column != "type" && column != "table") {
                 columns += QString("%1, ").arg(column.c_str());
-                values += QString("'%1', ").arg(value.c_str());
+                values += QString("%1, ").arg(value.c_str());
             }
         }
         columns.chop(2); // 去掉多余的 ", "
