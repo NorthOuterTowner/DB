@@ -5,8 +5,9 @@
 #include <map>
 #include <string>
 #include <regex>
+#include "lexer.h"
 
-Affair::Affair(const QString& filePath) : filePath(filePath) {
+Affair::Affair(const QString& filePath, Lexer* lexer) : filePath(filePath), lexer(lexer) {
     // 打开文件以写模式，覆盖旧文件
     file.setFileName(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -25,78 +26,104 @@ Affair::~Affair() {
 }
 
 void Affair::start() {
-    // 初始化事务，创建或覆盖 undo.txt 文件
+    // 初始化事务，创建或覆盖撤销日志
+    isrunning=true;
+    end=false;
     file.resize(0); // 清空文件内容
-    qDebug() << "事务开始，初始化撤销日志文件：" << filePath;
+    undoSQL.clear();
+    qDebug() << "事务开始，初始化撤销日志";
 }
 
 void Affair::commit() {
     // 提交事务
-    qDebug() << "事务提交，撤销日志文件：" << filePath;
+    isrunning=false;
+    end=false;
+    undoSQL.clear();
+    qDebug() << "事务提交，清除撤销日志文件";
 }
 
 void Affair::rollback() {
     // 回滚事务
-    qDebug() << "事务回滚，撤销日志文件：" << filePath;
+    isrunning=false;
+    end=true;
+    qDebug()<<"撤销："<<undoSQL;
+
+    std::vector<std::string> tokens = utils::split(undoSQL.toStdString(), "!");
+    for (const auto& token : tokens) {
+
+        if (!token.empty()) {
+            QString sql = QString::fromStdString(token);
+            qDebug() << "执行反操作 SQL 语句：" << sql;
+
+            lexer->handleRawSQL(sql); // 调用 Lexer 的槽函数
+
+        }
+
+    }
+    qDebug() << "事务回滚，执行撤销日志文件" ;
 }
 
 void Affair::writeToUndo(const QString& sql) {
-    qDebug() << "事务读取sql语句：" << sql;
-    std::map<std::string, std::string> operation = parseSQL(sql.toStdString());
-    QString undoSQL;
+    if(end==false&&isrunning==true){
+        qDebug() << "事务读取sql语句：" << sql;
+        std::map<std::string, std::string> operation = parseSQL(sql.toStdString());
+        QString undoSQL;
 
-    // 根据操作类型生成反操作 SQL 语句
-    if (operation["type"] == "INSERT") {
-        // 插入操作的反操作是删除
-        QString table = operation["table"].c_str();
-        QString whereClause;
-        for (const auto& [column, value] : operation) {
-            if (column != "type" && column != "table") {
-                whereClause += QString("%1 = %2 AND ").arg(column.c_str()).arg(value.c_str());
-            }
-        }
-        whereClause.chop(5); // 去掉多余的 " AND "
-        undoSQL = QString("DELETE FROM %1 WHERE %2;").arg(table).arg(whereClause);
-    } else if (operation["type"] == "UPDATE") {
-        // 更新操作的反操作是将值更新回旧值
-        QString table = operation["table"].c_str();
-        QString setClause;
-        QString whereClause;
-        for (const auto& [column, value] : operation) {
-            if (column != "type" && column != "table") {
-                if (column.find("old_") == 0) {
-                    setClause += QString("%1 = %2, ").arg(column.substr(4).c_str()).arg(value.c_str());
-                } else {
+        // 根据操作类型生成反操作 SQL 语句
+        if (operation["type"] == "INSERT") {
+            // 插入操作的反操作是删除
+            QString table = operation["table"].c_str();
+            QString whereClause;
+            for (const auto& [column, value] : operation) {
+                if (column != "type" && column != "table") {
                     whereClause += QString("%1 = %2 AND ").arg(column.c_str()).arg(value.c_str());
                 }
             }
-        }
-        setClause.chop(2); // 去掉多余的 ", "
-        whereClause.chop(5); // 去掉多余的 " AND "
-        undoSQL = QString("UPDATE %1 SET %2 WHERE %3;").arg(table).arg(setClause).arg(whereClause);
-    } else if (operation["type"] == "DELETE") {
-        // 删除操作的反操作是插入
-        QString table = operation["table"].c_str();
-        QString columns;
-        QString values;
-        for (const auto& [column, value] : operation) {
-            if (column != "type" && column != "table") {
-                columns += QString("%1, ").arg(column.c_str());
-                values += QString("%1, ").arg(value.c_str());
+            whereClause.chop(5); // 去掉多余的 " AND "
+            undoSQL = QString("DELETE FROM %1 WHERE %2;").arg(table).arg(whereClause);
+        } else if (operation["type"] == "UPDATE") {
+            // 更新操作的反操作是将值更新回旧值
+            QString table = operation["table"].c_str();
+            QString setClause;
+            QString whereClause;
+            for (const auto& [column, value] : operation) {
+                if (column != "type" && column != "table") {
+                    if (column.find("old_") == 0) {
+                        setClause += QString("%1 = %2, ").arg(column.substr(4).c_str()).arg(value.c_str());
+                    } else {
+                        whereClause += QString("%1 = %2 AND ").arg(column.c_str()).arg(value.c_str());
+                    }
+                }
             }
+            setClause.chop(2); // 去掉多余的 ", "
+            whereClause.chop(5); // 去掉多余的 " AND "
+            undoSQL = QString("UPDATE %1 SET %2 WHERE %3;").arg(table).arg(setClause).arg(whereClause);
+        } else if (operation["type"] == "DELETE") {
+            // 删除操作的反操作是插入
+            QString table = operation["table"].c_str();
+            QString columns;
+            QString values;
+            for (const auto& [column, value] : operation) {
+                if (column != "type" && column != "table") {
+                    columns += QString("%1, ").arg(column.c_str());
+                    values += QString("%1, ").arg(value.c_str());
+                }
+            }
+            columns.chop(2); // 去掉多余的 ", "
+            values.chop(2); // 去掉多余的 ", "
+            undoSQL = QString("INSERT INTO %1 (%2) VALUES (%3);").arg(table).arg(columns).arg(values);
         }
-        columns.chop(2); // 去掉多余的 ", "
-        values.chop(2); // 去掉多余的 ", "
-        undoSQL = QString("INSERT INTO %1 (%2) VALUES (%3);").arg(table).arg(columns).arg(values);
+
+        qDebug() << "反操作语句：" << undoSQL;
+        // 写入反操作 SQL 语句到文件
+        writeUndo(undoSQL);
     }
 
-    qDebug() << "反操作语句：" << undoSQL;
-    // 写入反操作 SQL 语句到文件
-    writeUndo(undoSQL);
 }
 
 void Affair::writeUndo(const QString& sql) {
-    out << sql << "\n";
+    undoSQL+=sql;
+    undoSQL+="!";
 }
 
 std::map<std::string, std::string> Affair::parseSQL(const std::string& sql) {

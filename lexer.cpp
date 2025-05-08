@@ -14,7 +14,7 @@
 #include <QDebug>
 #include <server.h>
 
-Lexer::Lexer(QWidget *parent) : parentWidget(parent),affair("undo.txt") {dataMgr=new datamanager(&dbMgr);}
+Lexer::Lexer(QWidget *parent) : parentWidget(parent),affair("undo.txt",this) {dataMgr=new datamanager(&dbMgr);}
 Lexer::~Lexer(){delete dataMgr;}
 void Lexer::setTreeWidget(QTreeWidget* treeWidget) {
     this->treeWidget = treeWidget;
@@ -850,7 +850,6 @@ std::map<std::string, SQLVal> Lexer::parseDescribe(const std::string& sql) {
 
 std::map<std::string, SQLVal> Lexer::parseStart(const std::string& sql){
 
-    affair.isrunning=true;
     affair.start();
 
     std::map<std::string, SQLVal> result = { {"type", std::string("START")}, {"status", false} };
@@ -863,6 +862,9 @@ std::map<std::string, SQLVal> Lexer::parseStart(const std::string& sql){
 }
 std::map<std::string, SQLVal> Lexer::parseRollback(const std::string& sql){
 
+
+    affair.rollback();
+
     std::map<std::string, SQLVal> result = { {"type", std::string("ROLLBACK")}, {"status", false} };
     std::regex pattern(R"(ROLLBACK\s+(\w+)(?:\s+(\w+))?)", ICASE);
     std::smatch match;
@@ -873,6 +875,7 @@ std::map<std::string, SQLVal> Lexer::parseRollback(const std::string& sql){
 }
 std::map<std::string, SQLVal> Lexer::parseCommit(const std::string& sql){
 
+    affair.commit();
 
     std::map<std::string, SQLVal> result = { {"type", std::string("COMMIT")}, {"status", false} };
     std::regex pattern(R"(COMMIT\s+(\w+)(?:\s+(\w+))?)", ICASE);
