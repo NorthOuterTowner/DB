@@ -80,6 +80,8 @@ public:
     std::shared_ptr<Node> parseWhereClause(const std::string& whereStr);
     std::map<std::string, SQLVal> parseCreate(const std::string& sql);
     std::map<std::string, SQLVal> parseDrop(const std::string& sql);
+    std::vector<std::string> getAllColumnsFromTable(const std::string& dbName, const std::string& tableName);
+
     std::map<std::string, SQLVal> parseInsert(const std::string& sql);
     std::map<std::string, SQLVal> parseUse(const std::string& sql);
     std::map<std::string, SQLVal> parseSelect(const std::string& sql);
@@ -110,11 +112,11 @@ public:
     std::vector<std::string> split(const std::string& s, const std::string& delimiter);
     std::map<std::string, SQLVal> parseRecover(const std::string& sql);
 
-
 private:
     dbManager dbMgr; // 数据库管理器
     QTreeWidget* treeWidget;// 用于在目录下显示数据库
     tableManage tableMgr;// 表管理器
+    fieldManage fieldMgr;//字段管理器
     datamanager* dataMgr;//数据管理器
     //QTextEdit* textEdit; // 用于SHOW DATABASES命令
     QWidget *parentWidget; // 新增成员变量，用于保存父窗口指针

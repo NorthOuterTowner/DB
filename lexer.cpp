@@ -4,6 +4,7 @@
 #include "usermanage.h"
 #include "databaselistdialog.h"
 #include "admin.h"
+#include "fieldmanage.h"
 #include <iostream>
 #include <regex>
 #include <map>
@@ -14,7 +15,10 @@
 #include <QDebug>
 #include <server.h>
 
-Lexer::Lexer(QWidget *parent) : parentWidget(parent),affair("undo.txt",this) {dataMgr=new datamanager(&dbMgr);}
+Lexer::Lexer(QWidget *parent) : parentWidget(parent),affair("undo.txt",this) {
+    dataMgr=new datamanager(&dbMgr);
+
+}
 Lexer::~Lexer(){delete dataMgr;}
 void Lexer::setTreeWidget(QTreeWidget* treeWidget) {
     this->treeWidget = treeWidget;
@@ -354,6 +358,34 @@ std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
 }
 
 
+
+std::vector<std::string> Lexer::getAllColumnsFromTable(const std::string& dbName, const std::string& tableName) {
+    std::vector<std::string> columns;
+
+    // 获取表信息
+    tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
+    if (tableInfo.table_name.empty()) {
+        std::cerr << "[error] 表 " << tableName << " 在数据库 " << dbName << " 中不存在。" << std::endl;
+        return columns;
+    }
+
+    // 获取字段信息
+    std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(dbName, tableName);
+    for (const auto& field : columnsInfo) {
+        columns.push_back(field.fieldName);
+    }
+
+    if (columns.empty()) {
+        std::cerr << "[error] 未能获取表 " << tableName << " 的字段信息。" << std::endl;
+    }
+
+    return columns;
+}
+
+
+
+
+
 std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
     if(affair.isrunning){
         affair.writeToUndo(QString::fromStdString(sql));
@@ -367,7 +399,8 @@ std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
     }
 
     // 匹配 INSERT INTO table (col1, col2, ...) VALUES (val1, val2), ...
-    std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(\([\S\s]+\))\s*;?\s*$)", ICASE);
+    //std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(\([\S\s]+\))\s*;?\s*$)", ICASE);
+    std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)(?:\s*\(([^)]+)\))?\s*VALUES\s*(\([\S\s]+\))\s*;?\s*$)", ICASE);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
@@ -384,13 +417,25 @@ std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
         result["status"] = true;
         result["table"] = tableName;
 
-        // 解析列名
+        // // 解析列名
+        // std::vector<std::string> columns;
+        // std::regex colPattern(R"(\w+)");
+        // auto colBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), colPattern);
+        // auto colEnd = std::sregex_iterator();
+        // for (auto it = colBegin; it != colEnd; ++it) {
+        //     columns.push_back(it->str());
+        // }
+
         std::vector<std::string> columns;
-        std::regex colPattern(R"(\w+)");
-        auto colBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), colPattern);
-        auto colEnd = std::sregex_iterator();
-        for (auto it = colBegin; it != colEnd; ++it) {
-            columns.push_back(it->str());
+        if (columnsStr.empty()) {
+            columns = getAllColumnsFromTable(dbName,tableName);  // Get all columns if not specified
+        } else {
+            std::regex colPattern(R"(\w+)");
+            auto colBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), colPattern);
+            auto colEnd = std::sregex_iterator();
+            for (auto it = colBegin; it != colEnd; ++it) {
+                columns.push_back(it->str());
+            }
         }
 
         // 解析值组
