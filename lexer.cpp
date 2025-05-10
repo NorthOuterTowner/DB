@@ -865,14 +865,24 @@ std::map<std::string, SQLVal> Lexer::parseDelete(const std::string& sql) {
         affair.writeToUndo(QString::fromStdString(sql));
     }
     std::map<std::string, SQLVal> result = { {"type", std::string("DELETE")}, {"status", false} };
-    std::regex pattern(R"(DELETE\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s*=\s*(\w+))", ICASE);
+    std::regex pattern_where(R"(DELETE\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s*=\s*(\w+))", ICASE);
+    std::regex pattern_without_where(R"(DELETE\s+FROM\s+(\w+)\s*;?)", ICASE);
+
     std::smatch match;
 
-    if (std::regex_search(sql, match, pattern)) {
+    if (std::regex_search(sql, match, pattern_where)) {
         result["status"] = true;
         result["table"] = match[1].str();
         result["key"] = match[2].str();
         result["value"] = match[3].str();  // 这里是主键的值
+
+    }
+    else if (std::regex_search(sql, match, pattern_without_where)){
+        result["status"] = true;
+        result["table"] = match[1].str();
+        result["key"] = "ALL";     // 标记为删除整表
+        result["value"] = "ALL";   // 无特定值
+        std::cout << "[DEBUG] DELETE entire table: " << match[1].str() << std::endl;
 
     }
     return result;
@@ -1053,10 +1063,19 @@ void Lexer::handleRawSQL(QString rawSql){
                 return;
             }
 
-            if (key != primaryKey) {
-                std::cerr << "Error: DELETE statement must use the primary key column. Expected key: " << primaryKey << ", but got: " << key << std::endl;
+            //整表删除时 跳过主键验证
+            if (key == "ALL") {
+                std::cout << "[DEBUG] Entire table delete, bypassing primary key check." << std::endl;
+            } else if (key != primaryKey) {
+                std::cerr << "Error: DELETE statement must use the primary key column. Expected key: "
+                          << primaryKey << ", but got: " << key << std::endl;
                 return;
             }
+
+            // if (key != primaryKey) {
+            //     std::cerr << "Error: DELETE statement must use the primary key column. Expected key: " << primaryKey << ", but got: " << key << std::endl;
+            //     return;
+            // }
 
             datamanager dataManager(&dbMgr);
             dataManager.deleteData(dbName, tableName, value);
