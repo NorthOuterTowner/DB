@@ -742,129 +742,86 @@ std::vector<std::vector<std::string>> datamanager::selectData(
     return results;
 }
 
-bool datamanager::updateData(
-    const std::string& dbName,
-    const std::string& tableName,
-    const std::string& setClause, // 格式为 "col1=val1,col2=val2,..."
-    const std::shared_ptr<Node>& whereTree // WHERE 子句的 AST 根节点 (可能为 nullptr)
-    ) {
-    // 记录事务操作
-    QString sql = QString("UPDATE %1 SET %2").arg(QString::fromStdString(tableName), QString::fromStdString(setClause));
-    if (whereTree) {
-        // 这里需要将 whereTree 转换为字符串形式以记录日志
-        // 简化处理，假设 whereTree 存在时记录 WHERE 子句存在
-        sql += " WHERE ...";
-    }
-    sql += ";";
-    affair.writeToUndo(sql);
-
-    // 1. 验证表是否存在
+// 执行 UPDATE 操作
+bool datamanager::updateData( const std::string& dbName,
+                             const std::string& tableName,
+                             const std::map<std::string, std::string>& setMap,
+                             const std::string& primaryKeyName,
+                             const std::string& primaryKeyValue){
+    // 1. 获取表结构
     tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
     if (tableInfo.table_name.empty()) {
-        std::cerr << "Error updating data: Table '" << tableName << "' does not exist in database '" << dbName << "'." << std::endl;
+        std::cerr << "Error: Table '" << tableName << "' does not exist." << std::endl;
         return false;
     }
 
-    // 2. 获取表的列信息
     std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(dbName, tableName);
     if (columnsInfo.empty()) {
-        std::cerr << "Error updating data: Could not retrieve column information for table '" << tableName << "'." << std::endl;
+        std::cerr << "Error: No column info found for table '" << tableName << "'." << std::endl;
         return false;
     }
 
-    // 3. 解析 SET 子句
-    std::map<int, std::string> updates = parseSetClause(setClause, columnsInfo);
-    if (updates.empty()) {
-        std::cerr << "Error updating data: Invalid SET clause '" << setClause << "'." << std::endl;
+    // 找主键索引
+    int primaryKeyIndex = -1;
+    std::map<std::string, int> columnIndexMap;
+    for (int i = 0; i < columnsInfo.size(); ++i) {
+        columnIndexMap[columnsInfo[i].fieldName] = i;
+        if (columnsInfo[i].fieldName == primaryKeyName) {
+            primaryKeyIndex = i;
+        }
+    }
+
+    if (primaryKeyIndex == -1) {
+        std::cerr << "Error: Primary key '" << primaryKeyName << "' not found." << std::endl;
         return false;
     }
 
-    // 4. 打开数据文件进行读取和写入
     std::string dataFilePath = buildFilePath(dbName, tableName);
     std::string tempFilePath = dataFilePath + ".tmp";
 
     std::ifstream inFile(dataFilePath);
     std::ofstream outFile(tempFilePath);
     if (!inFile.is_open() || !outFile.is_open()) {
-        std::cerr << "Error updating data: Could not open data file '" << dataFilePath << "'." << std::endl;
+        std::cerr << "Error: Failed to open file for update." << std::endl;
         return false;
     }
 
-    // 5. 逐行处理数据文件
-    bool anyRowUpdated = false;
     std::string line;
-    int recordsUpdated = 0;
-
+    bool updated = false;
     while (std::getline(inFile, line)) {
-        if (line.empty()) continue; // 跳过空行
-
-        // 分割行数据为各个字段值
         std::vector<std::string> rowValues = splitString(line, ',');
-
-        // 验证行数据的字段数量是否与表结构一致
         if (rowValues.size() != columnsInfo.size()) {
-            std::cerr << "Warning: Invalid data row in table '" << tableName
-                      << "': Expected " << columnsInfo.size()
-                      << " fields, but found " << rowValues.size() << " fields. Skipping this row." << std::endl;
-            outFile << line << std::endl; // 保留格式错误的行，不进行更新
+            outFile << line << "\n"; // 保持原样
             continue;
         }
 
-        // 应用 WHERE 子句筛选
-        bool rowMatches = evaluateWhereClauseTree(whereTree, rowValues, columnsInfo);
-        if (!rowMatches) {
-            // 如果不满足 WHERE 条件，则直接写入原行
-            outFile << line << std::endl;
-            continue;
-        }
-
-        // 如果满足条件，则进行更新
-        bool rowUpdated = false;
-        for (const auto& update : updates) {
-            int colIndex = update.first;
-            const std::string& newValue = update.second;
-
-            // 检查是否真的有变化
-            if (rowValues[colIndex] != newValue) {
-                rowValues[colIndex] = newValue;
-                rowUpdated = true;
+        if (rowValues[primaryKeyIndex] == primaryKeyValue) {
+            for (const auto& [colName, newVal] : setMap) {
+                if (columnIndexMap.count(colName)) {
+                    rowValues[columnIndexMap[colName]] = newVal;
+                }
             }
+            updated = true;
         }
 
-        // 将更新后的行写入临时文件
-        if (rowUpdated) {
-            outFile << joinRowValues(rowValues) << std::endl;
-            anyRowUpdated = true;
-            recordsUpdated++;
-        } else {
-            // 如果没有实际更新，则写入原行
-            outFile << line << std::endl;
-        }
+        outFile << joinRowValues(rowValues) << "\n";
     }
 
-    // 6. 关闭文件并替换原文件
     inFile.close();
     outFile.close();
 
-    if (anyRowUpdated) {
-        // 删除原文件并将临时文件重命名为原文件
-        std::remove(dataFilePath.c_str());
-        std::rename(tempFilePath.c_str(), dataFilePath.c_str());
-
-        // 更新表的最后修改时间
-        updateTableLastModifiedDate(dbName, tableName);
-
-        // 记录更新操作的日志
-        Logger logger("../../res/system_logs.txt");
-        logger.log(Session::getCurrentUserId(), "UPDATE", "DATA", "Updated " + std::to_string(recordsUpdated) + " records in " + tableName + " in " + dbName);
-
-        return true;
-    } else {
-        // 如果没有更新任何行，则删除临时文件
+    if (!updated) {
+        std::cerr << "Warning: No matching row with primary key = " << primaryKeyValue << std::endl;
         std::remove(tempFilePath.c_str());
-        std::cout << "Info: No rows were updated in table '" << tableName << "'." << std::endl;
-        return false; // 没有更新任何行
+        return false;
     }
+
+    std::remove(dataFilePath.c_str());
+    std::rename(tempFilePath.c_str(), dataFilePath.c_str());
+
+    updateTableLastModifiedDate(dbName, tableName);
+    return true;
+
 }
 
 

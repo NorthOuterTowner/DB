@@ -39,12 +39,12 @@ public:
                     const std::string& primaryKeyName,
                     const std::string& primaryKeyValue);
 
-    bool updateData(
+    /*bool updateData(
         const std::string& dbName,
         const std::string& tableName,
         const std::string& setClause, // 格式为 "col1=val1,col2=val2,..."
         const std::shared_ptr<Node>& whereTree // WHERE 子句的 AST 根节点 (可能为 nullptr)
-        ) ;
+        ) ;*/
 
 
     bool rollbackTransaction();
