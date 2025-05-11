@@ -4,6 +4,7 @@
 #include "usermanage.h"
 #include "databaselistdialog.h"
 #include "admin.h"
+#include "wrong.h"
 #include "fieldmanage.h"
 #include <iostream>
 #include <regex>
@@ -979,6 +980,7 @@ std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
             return func(sql);
         }
     }
+    Wrong::getInstance("syntax error")->show();
     return { {"type", std::string("UNKNOWN")}, {"status", false} };
 }
 
