@@ -4,8 +4,13 @@
 #include "usermanage.h"
 #include "databaselistdialog.h"
 #include "admin.h"
+
 #include "logger.h"
 #include "session.h"
+
+#include "wrong.h"
+#include "fieldmanage.h"
+
 #include <iostream>
 #include <regex>
 #include <map>
@@ -16,7 +21,10 @@
 #include <QDebug>
 #include <server.h>
 
-Lexer::Lexer(QWidget *parent) : parentWidget(parent),affair("undo.txt",this) {dataMgr=new datamanager(&dbMgr);}
+Lexer::Lexer(QWidget *parent) : parentWidget(parent),affair("undo.txt",this) {
+    dataMgr=new datamanager(&dbMgr);
+
+}
 Lexer::~Lexer(){delete dataMgr;}
 void Lexer::setTreeWidget(QTreeWidget* treeWidget) {
     this->treeWidget = treeWidget;
@@ -377,6 +385,34 @@ std::map<std::string, SQLVal> Lexer::parseDrop(const std::string& sql) {
 }
 
 
+
+std::vector<std::string> Lexer::getAllColumnsFromTable(const std::string& dbName, const std::string& tableName) {
+    std::vector<std::string> columns;
+
+    // 获取表信息
+    tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
+    if (tableInfo.table_name.empty()) {
+        std::cerr << "[error] 表 " << tableName << " 在数据库 " << dbName << " 中不存在。" << std::endl;
+        return columns;
+    }
+
+    // 获取字段信息
+    std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(dbName, tableName);
+    for (const auto& field : columnsInfo) {
+        columns.push_back(field.fieldName);
+    }
+
+    if (columns.empty()) {
+        std::cerr << "[error] 未能获取表 " << tableName << " 的字段信息。" << std::endl;
+    }
+
+    return columns;
+}
+
+
+
+
+
 std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
     if(affair.isrunning){
         affair.writeToUndo(QString::fromStdString(sql));
@@ -390,7 +426,8 @@ std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
     }
 
     // 匹配 INSERT INTO table (col1, col2, ...) VALUES (val1, val2), ...
-    std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(\([\S\s]+\))\s*;?\s*$)", ICASE);
+    //std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(\([\S\s]+\))\s*;?\s*$)", ICASE);
+    std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)(?:\s*\(([^)]+)\))?\s*VALUES\s*(\([\S\s]+\))\s*;?\s*$)", ICASE);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
@@ -407,13 +444,25 @@ std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
         result["status"] = true;
         result["table"] = tableName;
 
-        // 解析列名
+        // // 解析列名
+        // std::vector<std::string> columns;
+        // std::regex colPattern(R"(\w+)");
+        // auto colBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), colPattern);
+        // auto colEnd = std::sregex_iterator();
+        // for (auto it = colBegin; it != colEnd; ++it) {
+        //     columns.push_back(it->str());
+        // }
+
         std::vector<std::string> columns;
-        std::regex colPattern(R"(\w+)");
-        auto colBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), colPattern);
-        auto colEnd = std::sregex_iterator();
-        for (auto it = colBegin; it != colEnd; ++it) {
-            columns.push_back(it->str());
+        if (columnsStr.empty()) {
+            columns = getAllColumnsFromTable(dbName,tableName);  // Get all columns if not specified
+        } else {
+            std::regex colPattern(R"(\w+)");
+            auto colBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), colPattern);
+            auto colEnd = std::sregex_iterator();
+            for (auto it = colBegin; it != colEnd; ++it) {
+                columns.push_back(it->str());
+            }
         }
 
         // 解析值组
@@ -870,10 +919,12 @@ std::map<std::string, SQLVal> Lexer::parseDelete(const std::string& sql) {
         affair.writeToUndo(QString::fromStdString(sql));
     }
     std::map<std::string, SQLVal> result = { {"type", std::string("DELETE")}, {"status", false} };
-    std::regex pattern(R"(DELETE\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s*=\s*(\w+))", ICASE);
+    std::regex pattern_where(R"(DELETE\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s*=\s*(\w+))", ICASE);
+    std::regex pattern_without_where(R"(DELETE\s+FROM\s+(\w+)\s*;?)", ICASE);
+
     std::smatch match;
 
-    if (std::regex_search(sql, match, pattern)) {
+    if (std::regex_search(sql, match, pattern_where)) {
         result["status"] = true;
         result["table"] = match[1].str();
         result["key"] = match[2].str();
@@ -892,6 +943,15 @@ std::map<std::string, SQLVal> Lexer::parseDelete(const std::string& sql) {
 
         logger.log(Session::getCurrentUserId(), "DELETE", "TABLE",
                    tableName + " from " + currentDatabase); // 记录日志
+    }
+
+    else if (std::regex_search(sql, match, pattern_without_where)){
+        result["status"] = true;
+        result["table"] = match[1].str();
+        result["key"] = "ALL";     // 标记为删除整表
+        result["value"] = "ALL";   // 无特定值
+        std::cout << "[DEBUG] DELETE entire table: " << match[1].str() << std::endl;
+
     }
 
     return result;
@@ -996,6 +1056,7 @@ std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
             return func(sql);
         }
     }
+    Wrong::getInstance("syntax error")->show();
     return { {"type", std::string("UNKNOWN")}, {"status", false} };
 }
 
@@ -1080,10 +1141,19 @@ void Lexer::handleRawSQL(QString rawSql){
                 return;
             }
 
-            if (key != primaryKey) {
-                std::cerr << "Error: DELETE statement must use the primary key column. Expected key: " << primaryKey << ", but got: " << key << std::endl;
+            //整表删除时 跳过主键验证
+            if (key == "ALL") {
+                std::cout << "[DEBUG] Entire table delete, bypassing primary key check." << std::endl;
+            } else if (key != primaryKey) {
+                std::cerr << "Error: DELETE statement must use the primary key column. Expected key: "
+                          << primaryKey << ", but got: " << key << std::endl;
                 return;
             }
+
+            // if (key != primaryKey) {
+            //     std::cerr << "Error: DELETE statement must use the primary key column. Expected key: " << primaryKey << ", but got: " << key << std::endl;
+            //     return;
+            // }
 
             datamanager dataManager(&dbMgr);
             dataManager.deleteData(dbName, tableName, value);
