@@ -581,7 +581,39 @@ bool datamanager::validateInsertData(const tableManage::TableInfo& tableInfo, co
     return true;
 }
 
-bool datamanager::deleteData(const std::string& dbName, const std::string& tableName, const std::string& primaryKeyValue) {
+
+
+
+bool datamanager::deleteData(const std::string& dbName,const std::string& tableName, const std::string& primaryKeyValue
+    ) {
+
+    // 判断是否是整表删除
+    if (primaryKeyValue == "ALL") {
+        std::string dataFilePath = buildFilePath(dbName, tableName);
+
+        // 删除整个数据文件
+        if (std::remove(dataFilePath.c_str()) == 0) {
+            std::cout << "[INFO] Entire table " << tableName << " deleted successfully." << std::endl;
+
+            // 创建一个新的空文件，保证表结构文件和数据文件一致
+            std::ofstream newFile(dataFilePath);
+            if (!newFile.is_open()) {
+                std::cerr << "[ERROR] Failed to recreate empty data file for table: " << tableName << std::endl;
+                return false;
+            }
+            newFile.close();
+
+            updateTableRecordCount(dbName, tableName, 0);  // 重置记录数
+            updateTableLastModifiedDate(dbName, tableName);
+            return true;
+        } else {
+            std::cerr << "[ERROR] Failed to delete entire table: " << tableName << std::endl;
+            return false;
+        }
+    }
+
+
+
     // 获取表结构
     tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
     if (tableInfo.table_name.empty()) {
@@ -645,6 +677,7 @@ bool datamanager::deleteData(const std::string& dbName, const std::string& table
         std::cerr << "No matching row found.\n";
         return false;
     }
+
 }
 
 // 执行 SELECT 查询
