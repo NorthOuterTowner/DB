@@ -7,7 +7,7 @@
 namespace fs = std::filesystem;
 
 // 构造函数实现
-tableManage::tableManage() : affair("undo.txt") {
+tableManage::tableManage() : affair("undo.txt",nullptr) {
     // 构造函数初始化 affair
 }
 
@@ -303,7 +303,7 @@ tableManage::TableInfo tableManage::getTableInfo(const std::string& dbName,const
     return tableInfo;
 }
 
-/*// 在 tableManage 类中添加备份表的函数
+// 在 tableManage 类中添加备份表的函数
 void tableManage::backupTable(const std::string& dbName, const std::string& tableName) {
     std::string tableDefFile = "../../res/" + tableName + ".tdf.txt";
     std::string backupTableDefFile = "../../res/backup/" + tableName + "_tdf_backup.txt";
@@ -331,4 +331,94 @@ void tableManage::backupTable(const std::string& dbName, const std::string& tabl
         dataFile.close();
         backupDataFile.close();
     }
-}*/
+}
+
+//更新表的记录数
+void tableManage::updateTableRecordCount(const std::string& dbName,const std::string& tableName,int delta){
+    std::string tableDescFile = "../../res/" + dbName + ".tb.txt";
+    QFile tbFile(QString::fromStdString(tableDescFile));
+
+    if (!tbFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        std::cerr << "Failed to open table description file: " << tableDescFile << std::endl;
+        return;
+    }
+
+    QStringList allLines;
+    QTextStream in(&tbFile);
+    while (!in.atEnd()) {
+        allLines.append(in.readLine());
+    }
+    tbFile.close();
+
+    bool found = false;
+    for (int i = 0; i < allLines.size(); ++i) {
+        std::vector<std::string> parts;
+        QString line = allLines[i];
+        QStringList lineParts = line.split(" ");
+        for (const auto& part : lineParts) {
+            parts.push_back(part.toStdString());
+        }
+
+        if (parts.size() > 1 && parts[0] == tableName) {
+            found = true;
+            // 更新记录数
+            int recordCount = std::stoi(parts[2]); // 假设记录数在第 3 列
+            recordCount += delta;
+            parts[2] = std::to_string(recordCount);
+
+            QString newLine;
+            for (const auto& part : parts) {
+                newLine += QString::fromStdString(part) + " ";
+            }
+            allLines[i] = newLine.trimmed();
+            break;
+        }
+    }
+
+    if (!found) {
+        std::cerr << "Table " << tableName << " not found in database " << dbName << std::endl;
+        return;
+    }
+
+    if (!tbFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        std::cerr << "Failed to open table description file for writing: " << tableDescFile << std::endl;
+        return;
+    }
+
+    QTextStream out(&tbFile);
+    for (const auto& line : allLines) {
+        out << line << "\n";
+    }
+    tbFile.close();
+}
+
+std::vector<tableManage::TableInfo> tableManage::getTablesInDatabase(const std::string& dbName) {
+    std::vector<TableInfo> tables; // 存储表信息的向量
+    std::string tableDescFile = "../../res/" + dbName + ".tb.txt"; // 构建表描述文件路径
+
+    QFile tbFile(QString::fromStdString(tableDescFile));
+    if (tbFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&tbFile);
+        QString line;
+        // 逐行读取文件
+        while (in.readLineInto(&line)) {
+            std::vector<std::string> parts = split(line.toStdString(), " ");
+            if (parts.size() >= 7) { // 确保行内容足够表示一个表
+                TableInfo info;
+                info.table_name = parts[0];
+                info.databaseName = parts[1];
+                info.creation_date = parts[2];
+                info.last_modified_date = parts[3];
+                info.field_count = std::stoi(parts[4]);
+                info.record_count = std::stoi(parts[5]);
+                info.table_type = parts[6];
+                tables.push_back(info); // 将表信息添加到向量中
+            }
+        }
+        tbFile.close(); // 关闭文件
+    } else {
+        std::cerr << "Could not open table description file: " << tableDescFile << std::endl;
+    }
+
+    return tables; // 返回所有找到的表的信息
+}

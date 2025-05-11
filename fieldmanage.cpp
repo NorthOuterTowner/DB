@@ -5,7 +5,7 @@
 #include <iomanip>
 #include <sstream>
 
-fieldManage::fieldManage() : affair("undo.txt") {
+fieldManage::fieldManage() : affair("undo.txt",nullptr) {
     // 构造函数初始化 affair
 }
 
@@ -390,9 +390,10 @@ bool fieldManage::modifyField(const std::string& dbName, const std::string& tabl
     return true;
 }
 
-std::vector<fieldManage::FieldInfo>fieldManage::getFieldsInfo(const std::string& tableName){
+std::vector<fieldManage::FieldInfo>fieldManage::getFieldsInfo(const std::string& dbName,const std::string& tableName){
     std::vector<fieldManage::FieldInfo> fields;
-    std::string tableDefFile =fieldManage::getTableDefFilePath(tableName);
+    //std::string tableDefFile =fieldManage::getTableDefFilePath(tableName);
+    std::string tableDefFile="../../res/"+tableName+".tdf.txt";
     QFile defFile(QString::fromStdString(tableDefFile));
 
     if (!defFile.open(QIODevice::ReadOnly | QIODevice::Text)) {

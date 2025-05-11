@@ -33,6 +33,7 @@ public:
     void loadTableDescriptions();//加载数据库下列表的函数
     std::vector<std::string> split(const std::string& s, const std::string& delimiter);
     void backupDatabaseMetadata();
+    std::string getCurrentDatabase()const;
 
 private:
     struct DatabaseInfo {

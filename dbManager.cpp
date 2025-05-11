@@ -1,13 +1,14 @@
 #include "dbManager.h"
 #include "session.h"
 #include "logger.h"
+#include "affair.h"
 #include <algorithm>
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
 #include <QTextEdit>
 
-dbManager::dbManager() : db_list(nullptr), affair("undo.txt") {
+dbManager::dbManager() : db_list(nullptr), affair("undo.txt", nullptr) { // 如果不使用lexer，传递nullptr
     loadDatabases(); // 初始化时加载现有数据库
 }
 
@@ -118,6 +119,23 @@ bool dbManager::createDatabase(const std::string& name) {
     }
 
     saveDatabases(); // 保存到文件
+
+
+
+
+
+
+    // 创建 *.tdf.txt 文件
+    std::string tdfFilePath = "../../res/" + name + ".tdf.txt";
+    QFile tdfFile(QString::fromStdString(tdfFilePath));
+    if (!tdfFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qWarning() << "Could not create the table definition file:" << QString::fromStdString(tdfFilePath);
+        return false;
+    }
+    tdfFile.close();
+
+
+
     return true;
 }
 
@@ -291,6 +309,7 @@ std::vector<std::string> dbManager::split(const std::string& s, const std::strin
 
 // 在 dbManager 类中添加备份数据库元信息的函数
 void dbManager::backupDatabaseMetadata() {
+    // 备份数据库的实现
     std::string backupDbFilePath = "../../res/backup/databases_backup.txt";
     QFile dbFile(QString::fromStdString(dbFilePath));
     QFile backupFile(QString::fromStdString(backupDbFilePath));
@@ -318,4 +337,8 @@ void dbManager::backupDatabaseMetadata() {
             backupTbFile.close();
         }
     }
+}
+
+std::string dbManager::getCurrentDatabase() const {
+    return currentDatabase;
 }

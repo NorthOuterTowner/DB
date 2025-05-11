@@ -38,7 +38,7 @@ public:
     };
 
     //获取表的字段列表
-        std::vector<FieldInfo>getFieldsInfo(const std::string& tableName);
+        std::vector<FieldInfo>getFieldsInfo(const std::string& dbName,const std::string& tableName);
 
     //备份
     void backupTableDefFile(const std::string& tableName);

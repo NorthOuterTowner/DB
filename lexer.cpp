@@ -16,8 +16,8 @@
 #include <QDebug>
 #include <server.h>
 
-Lexer::Lexer(QWidget *parent) : parentWidget(parent),affair("undo.txt") {}
-
+Lexer::Lexer(QWidget *parent) : parentWidget(parent),affair("undo.txt",this) {dataMgr=new datamanager(&dbMgr);}
+Lexer::~Lexer(){delete dataMgr;}
 void Lexer::setTreeWidget(QTreeWidget* treeWidget) {
     this->treeWidget = treeWidget;
     dbMgr.setTreeWidget(treeWidget);
@@ -31,27 +31,39 @@ void Lexer::reloadDbManagerDatabases() {
 /*实现SHOW DATABASES语句的实现
 void Lexer::setTextEdit(QTextEdit* textEdit) {
     this->textEdit = textEdit;
+}
 }*/
 
 #define ICASE std::regex_constants::icase
 
 using SQLVal = std::variant< bool, std::string, std::vector<std::string>,
                             std::vector<std::map<std::string,std::string>>,
-                            std::vector<std::vector<std::string>>,std::shared_ptr<Node> >;
+                            std::vector<std::vector<std::string>>,std::shared_ptr<Node>,std::vector<SortRule> ,std::map<std::string,std::string>>;
 
-std::shared_ptr<Node> parseWhereClause(const std::string& whereStr);
+//std::shared_ptr<Node> parseWhereClause(const std::string& whereStr);
 
 // 解析单个条件
 std::shared_ptr<Node> Lexer::parseCondition(const std::string& conditionStr) {
-    std::regex conditionPattern(R"((\w+)\s*([=<>!]+)\s*('[^']*'|\w+))");
+    std::regex conditionPattern(R"((\w+)\s*([=<>!]+)\s*('[^']*'|\w+))", std::regex::icase);
     std::smatch match;
+
     if (std::regex_search(conditionStr, match, conditionPattern)) {
         Condition condition;
-        condition.column = match[1].str();
-        condition.op = match[2].str();
-        condition.value = match[3].str();
+        condition.column = match[1].str();  // 获取列名
+        condition.op = match[2].str();      // 获取运算符
+        condition.value = match[3].str();   // 获取值
+
+        // 打印调试信息
+        std::cout << "Parsed condition: "
+                  << "column: " << condition.column
+                  << ", operator: " << condition.op
+                  << ", value: " << condition.value << std::endl;
+
         return std::make_shared<Node>(condition);
     }
+
+    // 如果没有匹配条件，打印并返回 nullptr
+    std::cout << "Invalid condition: " << conditionStr << std::endl;
     return nullptr;
 }
 
@@ -94,27 +106,61 @@ std::shared_ptr<Node> Lexer::parseWhereClause(const std::string& whereStr) {
 //where嵌套时括号优先
 std::vector<std::string> Lexer::tokenize(const std::string& str) {
     std::vector<std::string> tokens;
-    std::regex token_pattern(R"(\s*([()])\s*|\s*(AND|OR|=|<>|<|>|<=|>=)\s*|\s*([\w\.']+)\s*)", std::regex::icase);
+
+    // 修复后的正则表达式：处理括号、操作符、字符串、数字和标识符
+    std::regex token_pattern(
+        R"((\()|(\))|(AND|OR|<>|<=|>=|=|<|>)|('[^']*')|(\d+)|([a-zA-Z_][a-zA-Z0-9_]*))",
+        std::regex::icase
+        );
+
     auto begin = std::sregex_iterator(str.begin(), str.end(), token_pattern);
     auto end = std::sregex_iterator();
 
     for (auto it = begin; it != end; ++it) {
-        for (int i = 1; i < it->size(); ++i) {
-            if ((*it)[i].matched) {
-                std::string token = (*it)[i].str();
-                std::transform(token.begin(), token.end(), token.begin(), ::toupper);
-                tokens.push_back(token);
-                break;
-            }
-        }
+        std::string token = it->str();
+        // 逻辑关键字统一为大写
+        if (token == "and" || token == "AND") token = "AND";
+        else if (token == "or" || token == "OR") token = "OR";
+        tokens.push_back(token);
     }
+
     return tokens;
 }
 
 std::shared_ptr<Node> Lexer::parsWhereClause(const std::string& whereClause) {
-    std::vector<std::string> tokens = tokenize(whereClause);
+    std::string cleaned = whereClause;
+    std::cout << "[DEBUG] Raw WHERE clause: " << whereClause << std::endl;
+    if (!cleaned.empty() && cleaned.back() == ';') {
+        cleaned.pop_back();  // 去掉结尾分号
+    }
+
+    std::vector<std::string> tokens = tokenize(cleaned);
+    std::cout << "Tokens parsed from WHERE clause:\n";
+    for (const auto& token : tokens) {
+        std::cout << "[" << token << "] ";
+    }
+    std::cout << std::endl;
+    if (tokens.empty()) {
+        throw std::runtime_error("Invalid WHERE clause: no tokens found");
+        }
+
     int pos = 0;
-    return parsExpression(tokens, pos);
+    auto node = parsExpression(tokens, pos);
+
+    // 防止遗漏括号等错误
+    if (pos < tokens.size()) {
+        std::stringstream error_msg;
+        error_msg << "Unexpected tokens after valid expression: ";
+        for (size_t i = pos; i < tokens.size(); ++i) {
+            error_msg << tokens[i] << " ";
+        }
+        throw std::runtime_error(error_msg.str());
+    }
+
+    //std::vector<std::string> tokens = tokenize(cleaned);
+
+
+    return node;
 }
 
 
@@ -154,21 +200,35 @@ std::shared_ptr<Node> Lexer::parseTerm(std::vector<std::string>& tokens, int& po
 
 // 处理括号或基本条件
 std::shared_ptr<Node> Lexer::parseFactor(std::vector<std::string>& tokens, int& pos) {
+    if (pos >= tokens.size()) {
+        throw std::runtime_error("Unexpected end of tokens in WHERE clause");
+    }
+
     if (tokens[pos] == "(") {
         ++pos; // 跳过 (
         auto node = this->parsExpression(tokens, pos);
-        if (tokens[pos] != ")") {
+        if (pos >= tokens.size() || tokens[pos] != ")") {
             throw std::runtime_error("Missing closing parenthesis");
         }
         ++pos; // 跳过 )
         return node;
     } else {
         // 是一个基本条件：col op val
+        std::cout << "tokens size = " << tokens.size() << ", pos = " << pos << std::endl;
         if (pos + 2 >= tokens.size()) {
-            throw std::runtime_error("Invalid condition in WHERE clause");
+            throw std::runtime_error("Invalid condition in WHERE clause (not enough tokens)");
         }
-        Condition cond{tokens[pos], tokens[pos + 1], tokens[pos + 2]};
-        pos += 3;
+
+        std::string col = tokens[pos++];
+        std::string op = tokens[pos++];
+        std::string val = tokens[pos++];
+
+        for (const auto& t : tokens) {
+            std::cout << "[" << t << "] ";
+        }
+        std::cout << std::endl;
+
+        Condition cond{col, op, val};
         return std::make_shared<Node>(cond);
     }
 }
@@ -322,50 +382,74 @@ std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
         affair.writeToUndo(QString::fromStdString(sql));
     }
     std::map<std::string, SQLVal> result = { {"type", "INSERT"}, {"status", false} };
+    
+    std::string dbName=getCurrentDatabase();
+    if(dbName.empty()){
+        std::cerr << "[error]do not choose database ，can't use INSERT。" << std::endl;
+        throw std::runtime_error("No database selected.");
+    }
 
-    std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(\([\S\s]+\)))", ICASE);
+    // 匹配 INSERT INTO table (col1, col2, ...) VALUES (val1, val2), ...
+    std::regex pattern(R"(^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(\([\S\s]+\))\s*;?\s*$)", ICASE);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
-        result["status"] = true;
-        result["table"] = std::string(match[1].str());
+        std::string tableName = match[1].str();
+        std::string columnsStr = match[2].str();
+        std::string valuesStr = match[3].str();
 
+        std::cout << "[parse] insert table: " << tableName << std::endl;
+        std::cout << "[parse] currentdatabase: " << dbName << std::endl;
+
+        // 设置当前表名
+        setCurrentTable(tableName);
+
+        result["status"] = true;
+        result["table"] = tableName;
+
+        // 解析列名
         std::vector<std::string> columns;
         std::regex colPattern(R"(\w+)");
-        std::string columnsStr = match[2].str();
         auto colBegin = std::sregex_iterator(columnsStr.begin(), columnsStr.end(), colPattern);
         auto colEnd = std::sregex_iterator();
-
         for (auto it = colBegin; it != colEnd; ++it) {
             columns.push_back(it->str());
         }
 
+        // 解析值组
         std::vector<std::vector<std::string>> valuesGroups;
         std::regex groupPattern(R"(\(([^()]+?)\))");
-        std::string valStr = match[3].str();
-        auto groupBegin = std::sregex_iterator(valStr.begin(), valStr.end(), groupPattern);
+        auto groupBegin = std::sregex_iterator(valuesStr.begin(), valuesStr.end(), groupPattern);
         auto groupEnd = std::sregex_iterator();
 
         for (auto it = groupBegin; it != groupEnd; ++it) {
-            std::string groupValues = it->str(1);
+            std::string groupValues = it->str(1); // 括号内内容
             std::vector<std::string> values;
 
+            // 支持字符串值：'Tom', 20
             std::regex valPattern(R"((?:'[^']*'|[^,]+))");
             auto valBegin = std::sregex_iterator(groupValues.begin(), groupValues.end(), valPattern);
             auto valEnd = std::sregex_iterator();
 
             for (auto valIt = valBegin; valIt != valEnd; ++valIt) {
                 std::string val = valIt->str();
-                val.erase(0, val.find_first_not_of(' '));
-                val.erase(val.find_last_not_of(' ') + 1);
+                // 去除前后空格和引号
+                val.erase(0, val.find_first_not_of(" '"));
+                val.erase(val.find_last_not_of(" '") + 1);
                 values.push_back(val);
             }
+
             if (columns.size() == values.size()) {
                 valuesGroups.push_back(values);
+            } else {
+                std::cerr << "[!] 列数与值数不匹配，忽略该组值" << std::endl;
             }
         }
 
         result["values"] = valuesGroups;
+
+        // 解析成功后
+        std::cout << "[success] all " << valuesGroups.size() << " 组插入值。" << std::endl;
 
         // 日志记录插入操作
         auto status = std::get_if<bool>(&result["status"]); // 提取状态值的指针
@@ -373,9 +457,9 @@ std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
             Logger logger("../../res/system_logs.txt");
             logger.log(Session::getCurrentUserId(), "INSERT", "TABLE", sql); // 记录插入的 SQL 语句
         }
-    }
 
     return result;
+}
 }
 
 std::map<std::string, SQLVal> Lexer::parseUse(const std::string& sql){
@@ -401,39 +485,109 @@ std::map<std::string, SQLVal> Lexer::parseUse(const std::string& sql){
  * Wait for examination
  * TODO:Need to parse "AS" and conditions
 */
+// std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
+//     std::map<std::string, SQLVal> result = { {"type", std::string("SELECT")}, {"status", false} };
+//     std::regex pattern(R"(SELECT\s+(.*?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.*?))?(?:\s+GROUP\s+BY\s+(.*?))?(?:\s+HAVING\s+(.*?))?(?:\s+ORDER\s+BY\s+(.*?))??)", ICASE);
+//     std::smatch match;
+
+//     if (std::regex_search(sql, match, pattern)) {
+//         result["status"] = true;
+
+//         std::regex colRegex(R"(\w+(?:\s+)?)", ICASE);
+//         std::string matchStr = match[1].str();
+//         auto colBegin = std::sregex_iterator(matchStr.begin(), matchStr.end(), colRegex);
+//         auto colEnd = std::sregex_iterator();
+//         std::vector<std::string> columns;
+//         for (auto it = colBegin; it != colEnd; ++it) {
+//             columns.push_back(it->str());
+//         }
+//         result["columns"] = columns;
+
+//         result["table"] = std::string(match[2].str());
+//         if (match[3].matched) result["where"] = parseWhereClause(std::string(match[3].str()));
+//         if (match[4].matched) result["group_by"] = std::string(match[4].str());
+//         if (match[5].matched) result["having"] = std::string(match[5].str());
+//         if (match[6].matched) result["order_by"] = std::string(match[6].str());
+//         if (match[7].matched) result["limit"] = std::string(match[7].str());
+//     }
+//     return result;
+// }
+
+
 std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("SELECT")}, {"status", false} };
-    std::regex pattern(R"(SELECT\s+(.*?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.*?))?(?:\s+GROUP\s+BY\s+(.*?))?(?:\s+HAVING\s+(.*?))?(?:\s+ORDER\s+BY\s+(.*?))?(?:\s+LIMIT\s+(.*?))?)", ICASE);
+
+    std::string dbName = getCurrentDatabase();
+    if (dbName.empty()) {
+        throw std::runtime_error("No database selected.");
+    }
+
+    std::regex pattern(
+        R"(SELECT\s+(\*|[\w\s,]+)\s+FROM\s+(\w+)(?:\s+WHERE\s+([^\n;]+))?(?:\s+ORDER\s+BY\s+([^\n;]+))?)",
+        std::regex::icase);
     std::smatch match;
 
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
 
-        std::regex colRegex(R"(\w+(?:\s+AS\s+\w+)?)", ICASE);
-        std::string matchStr = match[1].str();
-        auto colBegin = std::sregex_iterator(matchStr.begin(), matchStr.end(), colRegex);
-        auto colEnd = std::sregex_iterator();
+        // 解析列名（支持 *）
+        std::string columnsStr = utils::strip(match[1].str());
         std::vector<std::string> columns;
-        for (auto it = colBegin; it != colEnd; ++it) {
-            columns.push_back(it->str());
+        if (columnsStr == "*") {
+            columns = {}; // 空数组代表 SELECT *
+        } else {
+            std::vector<std::string> rawColumns = utils::split(columnsStr, ",");
+            for (auto& col : rawColumns) {
+                col = utils::strip(col);
+                if (!col.empty()) {
+                    columns.push_back(col);
+                }
+            }
         }
         result["columns"] = columns;
 
-        result["table"] = std::string(match[2].str());
+        // 解析表名
+        result["table"] = utils::strip(match[2].str());
 
         // 记录日志
         Logger logger("../../res/system_logs.txt");
-        logger.log(Session::getCurrentUserId(), "SELECT", "TABLE", std::get<std::string>(result["table"]) + " from " + currentDatabase); // 记录日志
+        logger.log(Session::getCurrentUserId(), "SELECT", "TABLE", std::get<std::string>(result["table"]) + " from " + dbName); // 记录日志
 
+        // 解析 WHERE 子句
+        if (match[3].matched) {
+            std::string whereStr = utils::strip(match[3].str());
+            result["whereTree"] = parsWhereClause(whereStr);
+        }
 
-        if (match[3].matched) result["where"] = parseWhereClause(std::string(match[3].str()));
-        if (match[4].matched) result["group_by"] = std::string(match[4].str());
-        if (match[5].matched) result["having"] = std::string(match[5].str());
-        if (match[6].matched) result["order_by"] = std::string(match[6].str());
-        if (match[7].matched) result["limit"] = std::string(match[7].str());
+        // 解析 ORDER BY 子句
+        if (match[4].matched) {
+            std::vector<SortRule> sortRules;
+            std::string orderByStr = match[4].str();
+            std::vector<std::string> orderTokens = utils::split(orderByStr, ",");
+            for (auto& token : orderTokens) {
+                token = utils::strip(token);
+                if (token.empty()) continue;
+
+                SortRule rule;
+                size_t spacePos = token.find_last_of(" \t"); // 查找排序关键字
+                if (spacePos != std::string::npos) {
+                    std::string col = token.substr(0, spacePos);
+                    std::string order = token.substr(spacePos + 1);
+                    rule.column = utils::strip(col);
+                    rule.isAscending = (order == "ASC" || order.empty());
+                } else {
+                    rule.column = token;
+                    rule.isAscending = true; // 默认升序
+                }
+                sortRules.push_back(rule);
+            }
+            result["order_by"] = sortRules;
+        }
     }
     return result;
 }
+
+
 
 std::map<std::string, SQLVal> Lexer::parseGrant(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("GRANT")}, {"status", false} };
@@ -657,48 +811,88 @@ std::map<std::string, SQLVal> Lexer::parseShow(const std::string& sql) {
 
 
 std::map<std::string, SQLVal> Lexer::parseUpdate(const std::string& sql) {
-
-    if(affair.isrunning){
+    if (affair.isrunning) {
         affair.writeToUndo(QString::fromStdString(sql));
     }
     std::map<std::string, SQLVal> result = { {"type", std::string("UPDATE")}, {"status", false} };
-    std::regex pattern(R"(UPDATE\s+(\w+)\s+SET\s+(\w+)\s*=\s*(\w+)\s+WHERE\s+(.+))", ICASE);
+    std::regex pattern(R"(UPDATE\s+(\w+)\s+SET\s+(.+?)\s+WHERE\s+(\w+)\s*=\s*(.+))", ICASE);
     std::smatch match;
+
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
-        result["table"] = std::string(match[1].str());
-        result["column"] = std::string(match[2].str());
-        result["value"] = std::string(match[3].str());
-        if (match[4].matched) result["condition"] = std::string(match[4].str());
+        result["table"] = match[1].str();
+
+        // 解析 SET 子句
+        std::string setClause = match[2].str();
+        std::map<std::string, std::string> setMap;
+
+        std::vector<std::string> assignments = utils::split(setClause, ",");
+        for (auto& assign : assignments) {
+            std::vector<std::string> pair = utils::split(assign, "=");
+            if (pair.size() == 2) {
+                std::string key = utils::strip(pair[0]);
+                std::string value = utils::strip(pair[1]);
+                setMap[key] = value;
+            }
+        }
+        result["set"] = SQLVal(setMap);
+
+        result["condition_column"] = match[3].str();
+        result["condition_value"] = match[4].str();
     }
 
-    // 日志记录更新操作，包含当前数据库的上下文
-    //Logger logger("../../res/system_logs.txt");
-    //logger.log(Session::getCurrentUserId(), "UPDATE", "TABLE", result["table"] + " in " + currentDatabase); // 记录日志
+    // 日志记录更新操作
+    Logger logger("../../res/system_logs.txt");
+    std::string tableName;
+
+    // 安全地从 variant 中获取字符串值
+    if (auto tableVar = std::get_if<std::string>(&result["table"])) {
+        tableName = *tableVar;
+    } else {
+        tableName = "unknown_table"; // 默认值，防止崩溃
+    }
+
+    logger.log(Session::getCurrentUserId(), "UPDATE", "TABLE",
+               tableName + " in " + currentDatabase); // 记录日志
 
     return result;
 }
+
+
+
 
 /**Test Finished
  * Wait for examination
  * TODO:Need an extra function to parse the condition
 */
 std::map<std::string, SQLVal> Lexer::parseDelete(const std::string& sql) {
-    if(affair.isrunning){
+    if (affair.isrunning) {
         affair.writeToUndo(QString::fromStdString(sql));
     }
     std::map<std::string, SQLVal> result = { {"type", std::string("DELETE")}, {"status", false} };
-    std::regex pattern(R"(DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?)", ICASE);
+    std::regex pattern(R"(DELETE\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s*=\s*(\w+))", ICASE);
     std::smatch match;
+
     if (std::regex_search(sql, match, pattern)) {
         result["status"] = true;
-        result["table"] = std::string(match[1].str());
-        if (match[2].matched) result["condition"] = match[2];
-    }
+        result["table"] = match[1].str();
+        result["key"] = match[2].str();
+        result["value"] = match[3].str();  // 这里是主键的值
 
-    // 日志记录删除操作，包含当前数据库的上下文
-    //Logger logger("../../res/system_logs.txt");
-    //logger.log(Session::getCurrentUserId(), "DELETE", "TABLE", result["table"] + " from " + currentDatabase); //记录日志
+        // 日志记录删除操作
+        Logger logger("../../res/system_logs.txt");
+        std::string tableName;
+
+        // 安全地从 variant 中获取字符串值
+        if (auto tableVar = std::get_if<std::string>(&result["table"])) {
+            tableName = *tableVar;
+        } else {
+            tableName = "unknown_table"; // 默认值，防止崩溃
+        }
+
+        logger.log(Session::getCurrentUserId(), "DELETE", "TABLE",
+                   tableName + " from " + currentDatabase); // 记录日志
+    }
 
     return result;
 }
@@ -730,7 +924,6 @@ std::map<std::string, SQLVal> Lexer::parseStart(const std::string& sql) {
     }
     return result;
 }
-
 std::map<std::string, SQLVal> Lexer::parseRollback(const std::string& sql) {
     std::map<std::string, SQLVal> result = { {"type", std::string("ROLLBACK")}, {"status", false} };
     std::regex pattern(R"(ROLLBACK)", std::regex::icase);
@@ -786,6 +979,9 @@ std::map<std::string, SQLVal> Lexer::parseSQL(const std::string& sql) {
       {std::regex(R"(^ALTER\s)", ICASE), [this](const std::string& sql) { return parseAlter(sql, tableMgr); }},
       {std::regex(R"(^SHOW\s)", ICASE), [this](const std::string& sql) { return parseShow(sql); }},
       {std::regex(R"(^UPDATE\s)", ICASE), [this](const std::string& sql) { return parseUpdate(sql); }},
+      {std::regex(R"(^START\s)", ICASE), [this](const std::string& sql) { return parseStart(sql); }},
+      {std::regex(R"(^ROLLBACK\s)", ICASE), [this](const std::string& sql) { return parseRollback(sql); }},
+      {std::regex(R"(^COMMIT\s)", ICASE), [this](const std::string& sql) { return parseCommit(sql); }},
       {std::regex(R"(^DELETE\s)", ICASE), [this](const std::string& sql) { return parseDelete(sql); }},
       {std::regex(R"(^DESCRIBE\s)", ICASE), [this](const std::string& sql) { return parseDescribe(sql); }},
         //{std::regex(R"(^RECOVER\s)", ICASE), [this](const std::string& sql) { return parseRecover(sql); }},
@@ -811,19 +1007,153 @@ void Lexer::handleRawSQL(QString rawSql){
         std::string type = std::get<std::string>(result["type"]);
         bool status = std::get<bool>(result["status"]);
         std::cout << "Type: " << type << ", Status: " << status << std::endl;
+
+        if (!status) continue;
+
+        if (type == "INSERT") {
+            std::string tableName = std::get<std::string>(result["table"]);
+            std::vector<std::vector<std::string>> valuesGroups =
+                std::get<std::vector<std::vector<std::string>>>(result["values"]);
+
+            std::string dbName = getCurrentDatabase();  // 从 Lexer 获取当前数据库
+            datamanager dataManager(&dbMgr);                    // 实例化 datamanager（注意命名一致）
+            for (const auto& values : valuesGroups) {
+                dataManager.insertData(dbName, tableName, values);
+                std::cout << "[DEBUG] dbName: " << dbName << ", tableName: " << tableName << std::endl;
+            }
+        }
+
+
+
+        if (type == "UPDATE") {
+            std::string tableName = std::get<std::string>(result["table"]);
+            auto setMap = std::get<std::map<std::string, std::string>>(result["set"]);
+            std::string pkName = std::get<std::string>(result["condition_column"]);
+            std::string pkValue = std::get<std::string>(result["condition_value"]);
+
+            std::string dbName = getCurrentDatabase();
+            datamanager dataManager(&dbMgr);
+            dataManager.updateData(dbName, tableName, setMap, pkName, pkValue);
+        }
+
+
+        if (type == "DELETE") {
+            std::string dbName = getCurrentDatabase();
+            std::string tableName = std::get<std::string>(result["table"]);
+            std::string key = std::get<std::string>(result["key"]);
+            std::string value = std::get<std::string>(result["value"]);
+
+            std::cout << "[DEBUG] DELETE SQL: dbName = " << dbName
+                      << ", table = " << tableName
+                      << ", key = " << key
+                      << ", value = " << value << std::endl;
+
+            // 获取字段信息，判断主键
+            fieldManage fieldMgr;
+            std::vector<fieldManage::FieldInfo> fields = fieldMgr.getFieldsInfo(dbName, tableName);
+
+            if (fields.empty()) {
+                std::cerr << "[ERROR] Field info is empty. Possibly failed to read table definition file." << std::endl;
+                return;
+            }
+
+            std::cout << "[DEBUG] Fields loaded from .tdf.txt:" << std::endl;
+            for (const auto& field : fields) {
+                std::cout << "  FieldName: " << field.fieldName
+                          << ", Constraints: " << field.constraints << std::endl;
+            }
+
+            std::string primaryKey;
+            for (const auto& field : fields) {
+                std::string constraintLower = field.constraints;
+                std::transform(constraintLower.begin(), constraintLower.end(), constraintLower.begin(), ::tolower);
+                if (constraintLower.find("primary key") != std::string::npos) {
+                    primaryKey = field.fieldName;
+                    break;
+                }
+            }
+
+            std::cout << "[DEBUG] Detected primary key: " << primaryKey << std::endl;
+
+            if (primaryKey.empty()) {
+                std::cerr << "Error: No primary key found in table '" << tableName << "'." << std::endl;
+                return;
+            }
+
+            if (key != primaryKey) {
+                std::cerr << "Error: DELETE statement must use the primary key column. Expected key: " << primaryKey << ", but got: " << key << std::endl;
+                return;
+            }
+
+            datamanager dataManager(&dbMgr);
+            dataManager.deleteData(dbName, tableName, value);
+        }
+
+        if (type == "SELECT") {
+            std::string tableName = std::get<std::string>(result["table"]);
+            std::vector<std::string> columns = std::get<std::vector<std::string>>(result["columns"]);
+
+            std::shared_ptr<Node> whereTree = nullptr;
+            if (result.find("whereTree") != result.end()) {
+                whereTree = std::get<std::shared_ptr<Node>>(result["whereTree"]);
+            }
+
+            std::string dbName = getCurrentDatabase();
+            datamanager dataManager(&dbMgr);
+
+            std::vector<std::vector<std::string>> rows = dataManager.selectData(
+                dbName, tableName, columns, whereTree
+                );
+
+            std::cout << "[DEBUG] SELECT Result (" << rows.size() << " rows):\n";
+            for (const auto& row : rows) {
+                for (const auto& val : row) {
+                    std::cout << val << "\t";
+                }
+                std::cout << std::endl;
+            }
+
+            std::string output;
+
+            // 加入表头
+            if (!columns.empty()) {
+                for (size_t i = 0; i < columns.size(); ++i) {
+                    output += columns[i];
+                    if (i < columns.size() - 1)
+                        output += "\t";
+                }
+                output += "\n";
+            }
+
+            // 加入每一行数据
+            for (const auto& row : rows) {
+                for (size_t i = 0; i < row.size(); ++i) {
+                    output += row[i];
+                    if (i < row.size() - 1)
+                        output += "\t";
+                }
+                output += "\n";
+            }
+
+            emit sendSelectResult(rows);
+    }
         if(status){
             Server * server = Server::getInstance();
             server->sendMessageToServer(QString::fromStdString(sql));
         }
-    }
+}
 }
 
-void Lexer::setCurrentDatabase(std::string& dbName) {
+void Lexer::setCurrentDatabase(const std::string& dbName) {
     currentDatabase = dbName;
 }
 
-void Lexer::setCurrentTable(std::string& tableName) {
+void Lexer::setCurrentTable(const std::string& tableName) {
     currentTable = tableName;
+}
+
+std::string Lexer::getCurrentDatabase()const{
+    return currentDatabase;
 }
 
 std::vector<std::string> Lexer::split(const std::string& s, const std::string& delimiter) {
@@ -836,3 +1166,4 @@ std::vector<std::string> Lexer::split(const std::string& s, const std::string& d
     tokens.push_back(s.substr(start));
     return tokens;
 }
+

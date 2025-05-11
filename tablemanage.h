@@ -31,6 +31,9 @@ public:
 
     bool dropTable(const std::string& dbName, const std::string& tableName);// 新增删除表的方法声明
 
+
+    void updateTableRecordCount(const std::string& dbName,const std::string& tableName,int delta);
+
     struct TableInfo {
         std::string table_name; // 表名称
         std::string databaseName; // 外键，表关联的数据库名
@@ -44,8 +47,10 @@ public:
     //获取表信息
     TableInfo getTableInfo(const std::string& dbName,const std::string& tableName);
 
-    //void backupTable(const std::string& dbName, const std::string& tableName);
+    //备份
+    void backupTable(const std::string& dbName, const std::string& tableName);
 
+    std::vector<TableInfo> getTablesInDatabase(const std::string& dbName); // 新增获取数据库中所有表信息的声明
 
 private:
 
