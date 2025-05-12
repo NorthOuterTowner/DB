@@ -29,7 +29,10 @@ public:
                     const std::vector<std::string>& constraints);
 
     bool dropTable(const std::string& dbName, const std::string& tableName);// 新增删除表的方法声明
-private:
+
+
+    void updateTableRecordCount(const std::string& dbName,const std::string& tableName,int delta);
+
     struct TableInfo {
         std::string table_name; // 表名称
         std::string databaseName; // 外键，表关联的数据库名
@@ -39,6 +42,11 @@ private:
         int record_count = 0; // 表中记录总数，初始为 0
         std::string table_type = "BASE"; // 表类型
     };
+
+    //获取表信息
+    TableInfo getTableInfo(const std::string& dbName,const std::string& tableName);
+
+private:
 
     std::string databaseName;// 表关联的数据库名
     std::string tableDescFile; // 表描述文件路径

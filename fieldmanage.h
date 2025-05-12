@@ -9,6 +9,7 @@
 
 class fieldManage {
 public:
+
     // 构造函数
     fieldManage();
     // 添加字段的函数
@@ -17,8 +18,6 @@ public:
     bool dropField(const std::string& dbName, const std::string& tableName, const std::string& fieldName);
     // 修改字段的函数
     bool modifyField(const std::string& dbName, const std::string& tableName, const std::string& fieldName, int fieldOrder, const std::string& fieldType, int fieldTypeParams, const std::string& constraints);
-private:
-    // 定义 FieldInfo 结构体，用于存储字段的详细信息
     struct FieldInfo {
         std::string dbName;         // 所属数据库名称
         std::string tableName;      // 所在表名称
@@ -36,6 +35,15 @@ private:
             : dbName(db), tableName(table), fieldName(field), fieldOrder(order),
             fieldType(type), fieldTypeParams(params), modificationTime(time), constraints(constraint) {}
     };
+
+    //获取表的字段列表
+        std::vector<FieldInfo>getFieldsInfo(const std::string& dbName,const std::string& tableName);
+
+private:
+    // 定义 FieldInfo 结构体，用于存储字段的详细信息
+
+
+
 
     // 获取表描述文件地址
     std::string getTableDescFilePath(const std::string& dbName);
