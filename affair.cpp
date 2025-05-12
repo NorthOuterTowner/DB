@@ -1,4 +1,6 @@
 #include "affair.h"
+#include "session.h"
+#include "logger.h"
 #include <QDebug>
 #include <sstream>
 #include <vector>
@@ -26,41 +28,46 @@ Affair::~Affair() {
 }
 
 void Affair::start() {
-    // 初始化事务，创建或覆盖撤销日志
-    isrunning=true;
-    end=false;
+    isrunning = true;
+    end = false;
     file.resize(0); // 清空文件内容
-    undoSQL.clear();
-    qDebug() << "事务开始，初始化撤销日志";
+    // 创建 Logger 实例并记录日志
+    Logger logger("../../res/system_logs.txt"); // 指定日志文件路径
+    logger.log(Session::getCurrentUserId(), "START", "TRANSACTION", filePath.toStdString());
+    qDebug() << "事务开始，初始化撤销日志文件：" << filePath;
 }
 
 void Affair::commit() {
-    // 提交事务
-    isrunning=false;
-    end=false;
+    isrunning = false;
+    end = false;
     undoSQL.clear();
+
+    // 创建 Logger 实例并记录日志
+    Logger logger("../../res/system_logs.txt");
+    logger.log(Session::getCurrentUserId(), "COMMIT", "TRANSACTION", filePath.toStdString());
+
     qDebug() << "事务提交，清除撤销日志文件";
 }
 
 void Affair::rollback() {
-    // 回滚事务
-    isrunning=false;
-    end=true;
-    qDebug()<<"撤销："<<undoSQL;
+    isrunning = false;
+    end = true;
+    qDebug() << "撤销：" << undoSQL;
 
     std::vector<std::string> tokens = utils::split(undoSQL.toStdString(), "!");
     for (const auto& token : tokens) {
-
         if (!token.empty()) {
             QString sql = QString::fromStdString(token);
             qDebug() << "执行反操作 SQL 语句：" << sql;
-
             lexer->handleRawSQL(sql); // 调用 Lexer 的槽函数
-
         }
-
     }
-    qDebug() << "事务回滚，执行撤销日志文件" ;
+
+    // 创建 Logger 实例并记录日志
+    Logger logger("../../res/system_logs.txt"); // 指定日志文件路径
+    logger.log(Session::getCurrentUserId(), "ROLLBACK", "TRANSACTION", filePath.toStdString());
+
+    qDebug() << "事务回滚，执行撤销日志文件";
 }
 
 void Affair::writeToUndo(const QString& sql) {
@@ -189,4 +196,20 @@ std::map<std::string, std::string> Affair::parseSQL(const std::string& sql) {
     }
 
     return result;
+}
+
+// 在 Affair 类中添加恢复方法
+void Affair::recover() {
+    QFile undoFile(filePath);
+    if (undoFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&undoFile);
+        while (!in.atEnd()) {
+            QString undoSQL = in.readLine();
+            // 执行反操作 SQL 语句
+            // 这里需要调用相应的数据库操作方法来执行 undoSQL
+            // 例如：datamanager->executeSQL(undoSQL);
+            qDebug() << "执行反操作语句：" << undoSQL;
+        }
+        undoFile.close();
+    }
 }

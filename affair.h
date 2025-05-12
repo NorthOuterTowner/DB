@@ -21,6 +21,7 @@ public:
     void commit();
     void rollback();
     void writeToUndo(const QString& sql);
+    void recover();
 
     bool isrunning=false;
 

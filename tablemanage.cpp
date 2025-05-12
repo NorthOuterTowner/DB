@@ -1,17 +1,32 @@
 #include "tablemanage.h"
+#include "datamanager.h"
+#include "logger.h"
+#include "session.h"
 #include <iostream>
 
 namespace fs = std::filesystem;
 
 // 构造函数实现
-tableManage::tableManage() {}
+tableManage::tableManage() : affair("undo.txt",nullptr) {
+    // 构造函数初始化 affair
+}
 
 // 创建表函数实现
 bool tableManage::createTable(const std::string& tableName,  const std::string& dbName) {
+
+    // 记录事务操作
+    QString sql = QString("CREATE TABLE %1.%2;").arg(QString::fromStdString(dbName)).arg(QString::fromStdString(tableName));
+    affair.writeToUndo(sql);
+
     if (!isValidTableName(dbName, tableName)) {
         std::cerr << "Table '" << tableName << "' already exists in database '" << dbName << "'." << std::endl;
         return false;
     }
+
+    // 日志记录表创建操作，包含数据库名
+    Logger logger("../../res/system_logs.txt"); // 指定日志文件路径
+    logger.log(Session::getCurrentUserId(), "CREATE", "TABLE", tableName + " in " + dbName); // 记录日志
+
     databaseName = dbName;
 
     TableInfo newTable;
@@ -88,6 +103,17 @@ bool tableManage::alterTable(const std::string& dbName, const std::string& table
                              const std::vector<std::string>& fieldTypes, const std::vector<int>& fieldTypeParams,
                              const std::vector<std::string>& constraints)
 {
+    QString sql;
+    if (operation == "ADD") {
+        sql = QString("ALTER TABLE %1.%2 ADD ...;").arg(QString::fromStdString(dbName)).arg(QString::fromStdString(tableName));
+    } else if (operation == "MODIFY") {
+        sql = QString("ALTER TABLE %1.%2 MODIFY ...;").arg(QString::fromStdString(dbName)).arg(QString::fromStdString(tableName));
+    } else if (operation == "DROP") {
+        sql = QString("ALTER TABLE %1.%2 DROP ...;").arg(QString::fromStdString(dbName)).arg(QString::fromStdString(tableName));
+    }
+    affair.writeToUndo(sql);
+
+
     TableInfo currentTableInfo;
     tableDescFile = "../../res/" + dbName + ".tb.txt";
     QFile tbFile(QString::fromStdString(tableDescFile));
@@ -172,6 +198,16 @@ bool tableManage::alterTable(const std::string& dbName, const std::string& table
 }
 
 bool tableManage::dropTable(const std::string& dbName, const std::string& tableName) {
+
+    // 记录事务操作
+    QString sql = QString("DROP TABLE %1.%2;").arg(QString::fromStdString(dbName)).arg(QString::fromStdString(tableName));
+    affair.writeToUndo(sql);
+
+    // 日志记录表删除操作，包含数据库名
+    Logger logger("../../res/system_logs.txt"); // 指定日志文件路径
+    logger.log(Session::getCurrentUserId(), "DROP", "TABLE", tableName + " from " + dbName); // 记录日志
+
+
     // 查找表信息文件
     tableDescFile = "../../res/" + dbName + ".tb.txt";
     QFile tbFile(QString::fromStdString(tableDescFile));
@@ -228,6 +264,11 @@ bool tableManage::dropTable(const std::string& dbName, const std::string& tableN
 
 
 tableManage::TableInfo tableManage::getTableInfo(const std::string& dbName,const std::string& tableName){
+
+    // 日志记录获取表信息操作，包含数据库名
+    //Logger logger("../../res/system_logs.txt"); // 指定日志文件路径
+    //logger.log(Session::getCurrentUserId(), "GET", "TABLE", tableName + " from " + dbName); // 记录日志
+
     TableInfo tableInfo;
     // 构建表描述文件路径
     std::string tableDescFile = "../../res/" + dbName + ".tb.txt";
@@ -260,6 +301,36 @@ tableManage::TableInfo tableManage::getTableInfo(const std::string& dbName,const
     file.close();
 
     return tableInfo;
+}
+
+// 在 tableManage 类中添加备份表的函数
+void tableManage::backupTable(const std::string& dbName, const std::string& tableName) {
+    std::string tableDefFile = "../../res/" + tableName + ".tdf.txt";
+    std::string backupTableDefFile = "../../res/backup/" + tableName + "_tdf_backup.txt";
+    QFile defFile(QString::fromStdString(tableDefFile));
+    QFile backupDefFile(QString::fromStdString(backupTableDefFile));
+
+    if (defFile.open(QIODevice::ReadOnly | QIODevice::Text) && backupDefFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream in(&defFile);
+        QTextStream out(&backupDefFile);
+        out << in.readAll();
+        defFile.close();
+        backupDefFile.close();
+    }
+
+    datamanager dataMgr(nullptr);
+    std::string dataFilePath = dataMgr.buildFilePath(dbName, tableName);
+    std::string backupDataFilePath = "../../res/backup/" + tableName + "_data_backup.txt";
+    QFile dataFile(QString::fromStdString(dataFilePath));
+    QFile backupDataFile(QString::fromStdString(backupDataFilePath));
+
+    if (dataFile.open(QIODevice::ReadOnly | QIODevice::Text) && backupDataFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream in(&dataFile);
+        QTextStream out(&backupDataFile);
+        out << in.readAll();
+        dataFile.close();
+        backupDataFile.close();
+    }
 }
 
 //更新表的记录数
@@ -319,4 +390,35 @@ void tableManage::updateTableRecordCount(const std::string& dbName,const std::st
         out << line << "\n";
     }
     tbFile.close();
+}
+
+std::vector<tableManage::TableInfo> tableManage::getTablesInDatabase(const std::string& dbName) {
+    std::vector<TableInfo> tables; // 存储表信息的向量
+    std::string tableDescFile = "../../res/" + dbName + ".tb.txt"; // 构建表描述文件路径
+
+    QFile tbFile(QString::fromStdString(tableDescFile));
+    if (tbFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&tbFile);
+        QString line;
+        // 逐行读取文件
+        while (in.readLineInto(&line)) {
+            std::vector<std::string> parts = split(line.toStdString(), " ");
+            if (parts.size() >= 7) { // 确保行内容足够表示一个表
+                TableInfo info;
+                info.table_name = parts[0];
+                info.databaseName = parts[1];
+                info.creation_date = parts[2];
+                info.last_modified_date = parts[3];
+                info.field_count = std::stoi(parts[4]);
+                info.record_count = std::stoi(parts[5]);
+                info.table_type = parts[6];
+                tables.push_back(info); // 将表信息添加到向量中
+            }
+        }
+        tbFile.close(); // 关闭文件
+    } else {
+        std::cerr << "Could not open table description file: " << tableDescFile << std::endl;
+    }
+
+    return tables; // 返回所有找到的表的信息
 }

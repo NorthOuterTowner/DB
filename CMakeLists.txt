@@ -62,6 +62,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         highsettings.h highsettings.cpp highsettings.ui
         FieldInputDialog.h FieldInputDialog.cpp
         datamanager.h datamanager.cpp
+        session.h session.cpp
+        logger.h logger.cpp
     )
 
     qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

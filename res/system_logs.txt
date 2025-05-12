@@ -1,0 +1,6 @@
+2025-04-27 16:00:21, root, CREATE, DATABASE, db10086
+2025-04-27 20:02:41, root, SHOW, DATABASES, requested
+2025-04-27 20:03:15, root, SHOW, DATABASES, requested
+2025-04-27 20:03:50, root, USE, DATABASE, db10086
+2025-04-30 20:34:11, root, Login, User, IP: 10.8.0.2
+2025-05-04 23:19:41, root, Login, User, IP: 10.8.0.2

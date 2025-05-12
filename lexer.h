@@ -75,9 +75,10 @@ public:
     // 新增设置 QTreeWidget 指针的方法
     void setTreeWidget(QTreeWidget* treeWidget);//用于在db_list中添加或删除数据库
     void reloadDbManagerDatabases();//用于初始化db_list
+
     std::shared_ptr<Node> parseCondition(const std::string& conditionStr);
     std::shared_ptr<Node> parseLogicalOp(const std::string& logicalStr);
-    std::shared_ptr<Node> parseWhereClause(const std::string& whereStr);
+     std::shared_ptr<Node> parseWhereClause(const std::string& whereStr);
     std::map<std::string, SQLVal> parseCreate(const std::string& sql);
     std::map<std::string, SQLVal> parseDrop(const std::string& sql);
     std::vector<std::string> getAllColumnsFromTable(const std::string& dbName, const std::string& tableName);
