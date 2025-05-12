@@ -3,7 +3,7 @@
 
 #include <QMainWindow>
 #include "lexer.h"
-
+#include <QTableWidget>
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
@@ -27,9 +27,10 @@ private slots:
     void onDropTableTriggered();
     void onTableItemClicked(QTreeWidgetItem *item, int column);
     void onTableDefinitionChanged(const QString& tableName);
+    void onTableHeaderClicked(int column);
 
 private:
     Ui::MainWindow *ui;
-    Lexer lexer; // 数据库解析器实例
+    Lexer lexer; // 数据库解析器实例    
 };
 #endif // MAINWINDOW_H
