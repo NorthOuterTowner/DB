@@ -60,6 +60,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         affair.h affair.cpp
         server.h server.cpp
         highsettings.h highsettings.cpp highsettings.ui
+        FieldInputDialog.h FieldInputDialog.cpp
         datamanager.h datamanager.cpp
     )
 
