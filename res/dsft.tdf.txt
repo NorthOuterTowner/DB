@@ -1,0 +1,2 @@
+dsft ter id 1 int 0 2025-05-09-11:55:13 
+dsft ter name 2 varchar 5 2025-05-09-11:55:13 primary key

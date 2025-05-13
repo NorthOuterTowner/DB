@@ -1,0 +1,3 @@
+xixiha oioi ID 1 int 0 2025-05-02-11:12:56 PRIMARY KEY
+xixiha oioi name 2 varchar 9 2025-05-02-11:12:56 
+xixiha oioi age 3 int 0 2025-05-02-11:12:56 

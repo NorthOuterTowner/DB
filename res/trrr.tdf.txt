@@ -1,0 +1,2 @@
+trrr tm age 1 int 0 2025-05-01-16:38:11 
+trrr tm name 2 varchar 6 2025-05-01-16:38:11 

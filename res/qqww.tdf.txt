@@ -1,0 +1,2 @@
+qqww qq id 1 int 0 2025-05-01-22:58:40 PRIMARY KEY
+qqww qq age 2 int 0 2025-05-01-22:58:40 

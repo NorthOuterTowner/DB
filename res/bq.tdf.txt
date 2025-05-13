@@ -1,0 +1,2 @@
+bq qb id 1 int 0 2025-05-01-22:01:30 primary key
+bq qb age 2 int 0 2025-05-01-22:01:30 

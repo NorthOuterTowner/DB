@@ -1,0 +1,2 @@
+aq qa id 1 int 0 2025-05-01-17:25:07 primary key
+aq qa name 2 varchar 9 2025-05-01-17:25:07 
