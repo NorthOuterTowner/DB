@@ -495,118 +495,278 @@ std::map<std::string, SQLVal> Lexer::parseUse(const std::string& sql){
     return result;
 }
 
-/**Test Finished
- * Wait for examination
- * TODO:Need to parse "AS" and conditions
-*/
+
+
 // std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
-//     std::map<std::string, SQLVal> result = { {"type", std::string("SELECT")}, {"status", false} };
-//     std::regex pattern(R"(SELECT\s+(.*?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.*?))?(?:\s+GROUP\s+BY\s+(.*?))?(?:\s+HAVING\s+(.*?))?(?:\s+ORDER\s+BY\s+(.*?))??)", ICASE);
+//     std::map<std::string,SQLVal>result = {{"type","SELECT"},{"status","false"}};
+
+//     std::string dbName=getCurrentDatabase();
+//     if(dbName.empty()){
+//         throw std::runtime_error("No database selected.");
+//     }
+
+//     std::regex pattern(
+//         //R"(SELECT\s+(\*|[\w\s,]+)\s+FROM\s+(\w+)(?:\s+WHERE\s+([^\n;]+))?(?:\s+ORDER\s+BY\s+([^\n;]+))?)",
+//         R"(SELECT\s+([\w\s,\(\)\*]+)\s+FROM\s+(\w+)(?:\s+WHERE\s+([^;]+))?(?:\s+GROUP\s+BY\s+([^;]+))?(?:\s+ORDER\s+BY\s+([^;]+))?)",
+
+//         std::regex::icase                );
 //     std::smatch match;
 
-//     if (std::regex_search(sql, match, pattern)) {
-//         result["status"] = true;
-
-//         std::regex colRegex(R"(\w+(?:\s+)?)", ICASE);
-//         std::string matchStr = match[1].str();
-//         auto colBegin = std::sregex_iterator(matchStr.begin(), matchStr.end(), colRegex);
-//         auto colEnd = std::sregex_iterator();
-//         std::vector<std::string> columns;
-//         for (auto it = colBegin; it != colEnd; ++it) {
-//             columns.push_back(it->str());
-//         }
-//         result["columns"] = columns;
-
-//         result["table"] = std::string(match[2].str());
-//         if (match[3].matched) result["where"] = parseWhereClause(std::string(match[3].str()));
-//         if (match[4].matched) result["group_by"] = std::string(match[4].str());
-//         if (match[5].matched) result["having"] = std::string(match[5].str());
-//         if (match[6].matched) result["order_by"] = std::string(match[6].str());
-//         if (match[7].matched) result["limit"] = std::string(match[7].str());
+//     if (!std::regex_search(sql, match, pattern)) {
+//         return result; // 无法解析
 //     }
+
+//     result["status"] = true;
+
+//     // 1. 解析列名（支持 *）和聚合函数
+//     std::string columnsStr = utils::strip(match[1].str());
+//     std::vector<std::string> columns;
+//     std::vector<std::string> aggregateFunctions;
+//     if (columnsStr == "*") {
+//         columns = {}; // 空数组代表 SELECT *
+//     } else {
+//         std::vector<std::string> rawColumns = split(columnsStr, ",");
+//         // for (auto& col : rawColumns) {
+//         //     col = utils::strip(col);
+//         //     if (!col.empty()) {
+//         //         columns.push_back(col);
+//         //     }
+//         for (auto& col : rawColumns) {
+//             col = utils::strip(col);
+//             if (col.find("(") != std::string::npos) {
+//                 aggregateFunctions.push_back(col);
+//             } else {
+//                 columns.push_back(col);
+//             }
+//         }
+//     }
+//     result["columns"] = columns;
+//     result["aggregates"] = aggregateFunctions;
+
+//     // 2. 解析表名
+//     result["table"] = utils::strip(match[2].str());
+
+//     // 3. 解析 WHERE 子句（使用括号解析器）
+//     if (match[3].matched) {
+//         std::string whereStr = utils::strip(match[3].str());
+//         std::cout << "[DEBUG] Raw WHERE clause: " << whereStr << std::endl;
+//         result["whereTree"] = parsWhereClause(whereStr);
+//     }
+
+//     // 4. 解析 GROUP BY 子句
+//     if (match[4].matched) {
+//         std::vector<std::string> groupByColumns = split(match[4].str(), ",");
+//         result["group_by"] = groupByColumns;
+//     }
+
+
+
+//     // 5. 解析 ORDER BY 子句
+//     if (match[5].matched) {
+//         std::vector<SortRule> sortRules;
+//         //std::string orderByStr = match[4].str();
+//         std::vector<std::string> orderTokens = split(match[5].str(), ",");
+//         for (auto& token : orderTokens) {
+//             token = utils::strip(token);
+//             if (token.empty()) continue;
+
+//             SortRule rule;
+//             size_t spacePos = token.find_last_of(" \t"); // 查找排序关键字
+//             if (spacePos != std::string::npos) {
+//                 std::string col = token.substr(0, spacePos);
+//                 std::string order = token.substr(spacePos + 1);
+//                 rule.column = utils::strip(col);
+//                 rule.isAscending = (order == "ASC" || order.empty());
+//             } else {
+//                 rule.column = token;
+//                 rule.isAscending = true; // 默认升序
+//             }
+//             sortRules.push_back(rule);
+//         }
+//         result["order_by"] = sortRules;
+//     }
+
+//     std::cout << "[DEBUG] Full SQL: " << sql << std::endl;
+//     if (match[3].matched) {
+//         std::cout << "[DEBUG] WHERE match: " << match[3].str() << std::endl;
+//     }
+
 //     return result;
 // }
 
 
-std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
-    std::map<std::string,SQLVal>result = {{"type","SELECT"},{"status","false"}};
 
-    std::string dbName=getCurrentDatabase();
-    if(dbName.empty()){
+
+
+
+// Assume SQLVal can hold different types, e.g., using std::variant or specific keys
+// struct SelectStatement { ... }; // Ideal structure as discussed in thought process
+
+std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
+    std::map<std::string, SQLVal> result = {{"type", "SELECT"}, {"status", false}};
+
+    std::string dbName = getCurrentDatabase();
+    if (dbName.empty()) {
         throw std::runtime_error("No database selected.");
     }
 
     std::regex pattern(
-        R"(SELECT\s+(\*|[\w\s,]+)\s+FROM\s+(\w+)(?:\s+WHERE\s+([^\n;]+))?(?:\s+ORDER\s+BY\s+([^\n;]+))?)",
-        std::regex::icase                );
+        R"(SELECT\s+(?:DISTINCT\s+)?([\w\s,\(\)\*]+)\s+FROM\s+(\w+)(?:\s+WHERE\s+([^;]+))?(?:\s+GROUP\s+BY\s+([^;]+))?(?:\s+ORDER\s+BY\s+([^;]+))?)",
+        std::regex::icase
+        );
     std::smatch match;
 
     if (!std::regex_search(sql, match, pattern)) {
-        return result; // 无法解析
+        std::cout << "[DEBUG] Failed to parse SQL: " << sql << std::endl;
+        return result;
     }
 
     result["status"] = true;
+    std::cout << "[DEBUG] Successfully parsed SQL: " << sql << std::endl;
 
-    // 1. 解析列名（支持 *）
-    std::string columnsStr = utils::strip(match[1].str());
+    // 解析 SELECT 列表
+    std::string selectListStr = utils::strip(match[1].str());
     std::vector<std::string> columns;
-    if (columnsStr == "*") {
-        columns = {}; // 空数组代表 SELECT *
+    std::vector<std::string> aggregateFunctions;
+
+    if (selectListStr == "*") {
+        columns = {}; // SELECT * 表示所有列
     } else {
-        std::vector<std::string> rawColumns = split(columnsStr, ",");
-        for (auto& col : rawColumns) {
-            col = utils::strip(col);
-            if (!col.empty()) {
-                columns.push_back(col);
+        std::vector<std::string> tokens = split(selectListStr, ",");
+        for (auto& token : tokens) {
+            token = utils::strip(token);
+            if (token.empty()) continue;
+
+            size_t openBracket = token.find('(');
+            size_t closeBracket = token.find(')');
+
+            if (openBracket != std::string::npos && closeBracket != std::string::npos && closeBracket > openBracket) {
+                aggregateFunctions.push_back(token);
+            } else {
+                columns.push_back(token);
             }
         }
     }
+
+    // 显式设置 columns 和 aggregates
     result["columns"] = columns;
+    result["aggregates"] = aggregateFunctions;
 
-    // 2. 解析表名
-    result["table"] = utils::strip(match[2].str());
-
-    // 3. 解析 WHERE 子句（使用括号解析器）
-    if (match[3].matched) {
-        std::string whereStr = utils::strip(match[3].str());
-        std::cout << "[DEBUG] Raw WHERE clause: " << whereStr << std::endl;
-        result["whereTree"] = parsWhereClause(whereStr);
+    // 调试输出
+    std::cout << "[DEBUG] Columns: " << columns.size() << " columns" << std::endl;
+    for (const auto& col : columns) {
+        std::cout << "[DEBUG]   Column: " << col << std::endl;
     }
 
-    // 4. 解析 ORDER BY 子句
+    std::cout << "[DEBUG] Aggregates: " << aggregateFunctions.size() << " functions" << std::endl;
+    for (const auto& agg : aggregateFunctions) {
+        std::cout << "[DEBUG]   Aggregate: " << agg << std::endl;
+    }
+
+    // 检查并设置结果
+    if (!columns.empty()) {
+        result["columns"] = columns;
+    }
+    if (!aggregateFunctions.empty()) {
+        result["aggregates"] = aggregateFunctions;
+    }
+
+    // 解析表名
+    std::string tableName = utils::strip(match[2].str());
+    result["table"] = SQLVal(tableName);
+
+    // 解析 WHERE 子句
+    if (match[3].matched) {
+        std::string whereStr = utils::strip(match[3].str());
+        std::cout << "[DEBUG] WHERE clause found: " << whereStr << std::endl;
+
+        try {
+            std::shared_ptr<Node> whereTree = parsWhereClause(whereStr);
+            result["whereTree"] = SQLVal(whereTree);
+            std::cout << "[DEBUG] WHERE clause parsed successfully" << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "[ERROR] Failed to parse WHERE clause: " << e.what() << std::endl;
+            result["whereTree"] = SQLVal();
+        }
+    } else {
+        result["whereTree"] = SQLVal();
+        std::cout << "[DEBUG] No WHERE clause found" << std::endl;
+    }
+
+    // 解析 GROUP BY 子句
+    std::vector<std::string> groupByColumns;
     if (match[4].matched) {
-        std::vector<SortRule> sortRules;
-        std::string orderByStr = match[4].str();
-        std::vector<std::string> orderTokens = split(orderByStr, ",");
+        std::string groupByStr = utils::strip(match[4].str());
+        groupByColumns = split(groupByStr, ",");
+        for (auto& col : groupByColumns) {
+            col = utils::strip(col);
+        }
+        result["group_by"] = SQLVal(groupByColumns);
+    } else {
+        result["group_by"] = SQLVal(std::vector<std::string>());
+    }
+
+    // 解析 ORDER BY 子句
+    std::vector<SortRule> sortRules;
+    if (match[5].matched) {
+        std::string orderByStr = utils::strip(match[5].str());
+        std::vector<std::string> orderTokens = split(orderByStr, " ");
+
         for (auto& token : orderTokens) {
             token = utils::strip(token);
             if (token.empty()) continue;
 
             SortRule rule;
-            size_t spacePos = token.find_last_of(" \t"); // 查找排序关键字
-            if (spacePos != std::string::npos) {
-                std::string col = token.substr(0, spacePos);
-                std::string order = token.substr(spacePos + 1);
-                rule.column = utils::strip(col);
-                rule.isAscending = (order == "ASC" || order.empty());
+            size_t ascPos = utils::toUpper(token).find(" ASC");
+            size_t descPos = utils::toUpper(token).find(" DESC");
+
+            if (descPos != std::string::npos && (ascPos == std::string::npos || descPos < ascPos)) {
+                rule.column = utils::strip(token.substr(0, descPos));
+                rule.isAscending = false;
+            } else if (ascPos != std::string::npos) {
+                rule.column = utils::strip(token.substr(0, ascPos));
+                rule.isAscending = true;
             } else {
                 rule.column = token;
-                rule.isAscending = true; // 默认升序
+                rule.isAscending = true;
             }
             sortRules.push_back(rule);
         }
-        result["order_by"] = sortRules;
+        result["order_by"] = SQLVal(sortRules);
+    } else {
+        result["order_by"] = SQLVal(std::vector<SortRule>());
     }
 
-    std::cout << "[DEBUG] Full SQL: " << sql << std::endl;
-    if (match[3].matched) {
-        std::cout << "[DEBUG] WHERE match: " << match[3].str() << std::endl;
+    // 输出调试信息
+    std::cout << "[DEBUG] Parsed result contents:" << std::endl;
+    for (const auto& pair : result) {
+        std::cout << "[DEBUG]   " << pair.first << ": ";
+        if (std::holds_alternative<std::vector<std::string>>(pair.second)) {
+            auto vec = std::get<std::vector<std::string>>(pair.second);
+            std::cout << "[";
+            for (size_t i = 0; i < vec.size(); ++i) {
+                std::cout << vec[i];
+                if (i < vec.size() - 1) std::cout << ", ";
+            }
+            std::cout << "]";
+        } else if (std::holds_alternative<std::shared_ptr<Node>>(pair.second)) {
+            std::cout << "(WHERE tree pointer)";
+        } else if (std::holds_alternative<bool>(pair.second)) {
+            std::cout << std::get<bool>(pair.second);
+        }  else if (std::holds_alternative<std::string>(pair.second)) {
+            std::cout << std::get<std::string>(pair.second);
+        } else {
+            std::cout << "(unknown type)";
+        }
+        std::cout << std::endl;
     }
+
+
 
     return result;
 }
 
-
+// Assume split, utils::strip, utils::toUpper, parsWhereClause, SQLVal definitions exist
 
 
 std::map<std::string, SQLVal> Lexer::parseGrant(const std::string& sql) {
@@ -1082,19 +1242,63 @@ void Lexer::handleRawSQL(QString rawSql){
         }
 
         if (type == "SELECT") {
-            std::string tableName = std::get<std::string>(result["table"]);
-            std::vector<std::string> columns = std::get<std::vector<std::string>>(result["columns"]);
+            // 使用安全的方式获取各参数
+            std::string tableName;
+            if (std::holds_alternative<std::string>(result["table"])) {
+                tableName = std::get<std::string>(result["table"]);
+            } else {
+                std::cerr << "[ERROR] Invalid type for table name!" << std::endl;
+                return;
+            }
+
+            std::vector<std::string> columns;
+            if (result.find("columns") != result.end() &&
+                std::holds_alternative<std::vector<std::string>>(result["columns"])) {
+                columns = std::get<std::vector<std::string>>(result["columns"]);
+            } else {
+                std::cout << "[DEBUG] No columns specified, using empty vector" << std::endl;
+                // 允许 columns 为空，只要有聚合函数
+            }
+
+            std::vector<std::string> aggregateFunctions;
+            if (result.find("aggregates") != result.end() &&
+                std::holds_alternative<std::vector<std::string>>(result["aggregates"])) {
+                aggregateFunctions = std::get<std::vector<std::string>>(result["aggregates"]);
+            }
+
+            std::vector<std::string> groupByColumns;
+            if (result.find("group_by") != result.end() &&
+                std::holds_alternative<std::vector<std::string>>(result["group_by"])) {
+                groupByColumns = std::get<std::vector<std::string>>(result["group_by"]);
+            }
+
+            // 如果没有普通列但有聚合函数，这是合法的
+            if (columns.empty() && aggregateFunctions.empty()) {
+                std::cerr << "[ERROR] Query must specify columns or aggregates!" << std::endl;
+                return;
+            }
 
             std::shared_ptr<Node> whereTree = nullptr;
-            if (result.find("whereTree") != result.end()) {
+            if (result.find("whereTree") != result.end() &&
+                std::holds_alternative<std::shared_ptr<Node>>(result["whereTree"])) {
                 whereTree = std::get<std::shared_ptr<Node>>(result["whereTree"]);
             }
 
             std::string dbName = getCurrentDatabase();
             datamanager dataManager(&dbMgr);
 
-            std::vector<std::vector<std::string>> rows = dataManager.selectData(
-                dbName, tableName, columns, whereTree
+            std::cout << "[DEBUG] Checking result types before execution:" << std::endl;
+            std::cout << "[DEBUG]   table type: " << (std::holds_alternative<std::string>(result["table"]) ? "string" : "other") << std::endl;
+            std::cout << "[DEBUG]   columns type: " << (std::holds_alternative<std::vector<std::string>>(result["columns"]) ? "vector<string>" : "other") << std::endl;
+            std::cout << "[DEBUG]   aggregates type: " << (result.count("aggregates") && std::holds_alternative<std::vector<std::string>>(result["aggregates"]) ? "vector<string>" : "other") << std::endl;
+            std::cout << "[DEBUG]   group_by type: " << (result.count("group_by") && std::holds_alternative<std::vector<std::string>>(result["group_by"]) ? "vector<string>" : "other") << std::endl;
+            std::cout << "[DEBUG]   whereTree type: " << (result.count("whereTree") && std::holds_alternative<std::shared_ptr<Node>>(result["whereTree"]) ? "shared_ptr<Node>" : "other") << std::endl;
+
+
+
+            // 调用执行器
+            std::vector<std::vector<std::string>> rows = dataManager.selecData(
+                dbName, tableName, columns, whereTree, aggregateFunctions, groupByColumns
                 );
 
             std::cout << "[DEBUG] SELECT Result (" << rows.size() << " rows):\n";

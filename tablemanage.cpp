@@ -6,6 +6,68 @@ namespace fs = std::filesystem;
 // 构造函数实现
 tableManage::tableManage() {}
 
+bool tableManage::addHeaderToTable(const std::string& dbName, const std::string& tableName) {
+    // 构建数据文件路径
+    std::string dataFilePath = "../../res/" + dbName + "/" + tableName + ".data.txt";
+
+    // 检查文件是否存在
+    QFile file(QString::fromStdString(dataFilePath));
+    if (!file.exists()) {
+        std::cerr << "Error: Data file not found: " << dataFilePath << std::endl;
+        return false;
+    }
+
+    // 读取所有数据行
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        std::cerr << "Error: Could not open data file: " << dataFilePath << std::endl;
+        return false;
+    }
+
+    QTextStream in(&file);
+    QStringList lines;
+    while (!in.atEnd()) {
+        lines.append(in.readLine());
+    }
+    file.close();
+
+    // 获取表的字段信息作为表头
+    fieldManage fieldManager;
+    std::vector<fieldManage::FieldInfo> fields = fieldManager.getFieldsInfo(dbName, tableName);
+
+    if (fields.empty()) {
+        std::cerr << "Error: No fields found for table: " << tableName << std::endl;
+        return false;
+    }
+
+    // 构建表头行
+    QString headerLine;
+    for (size_t i = 0; i < fields.size(); ++i) {
+        if (i > 0) {
+            headerLine += ",";
+        }
+        headerLine += QString::fromStdString(fields[i].fieldName);
+    }
+
+    // 重新写入文件，第一行为表头，然后是原数据
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        std::cerr << "Error: Could not open data file for writing: " << dataFilePath << std::endl;
+        return false;
+    }
+
+    QTextStream out(&file);
+    out << headerLine << "\n"; // 写入表头
+
+    // 写入原数据
+    for (const QString& line : lines) {
+        out << line << "\n";
+    }
+
+    file.close();
+
+    std::cout << "Successfully added header to table: " << tableName << " in database: " << dbName << std::endl;
+    return true;
+}
+
 // 创建表函数实现
 bool tableManage::createTable(const std::string& tableName,  const std::string& dbName) {
     if (!isValidTableName(dbName, tableName)) {

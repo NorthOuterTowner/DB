@@ -1,7 +1,7 @@
 #include "utils.h"
 #include <vector>
 #include <string>
-
+#include <algorithm>
 utils::utils() {}
 
 std::vector<std::string> utils::split(const std::string& str, const std::string& delimiter) {
@@ -32,4 +32,13 @@ std::string utils::strip(const std::string& str) {
     auto end = str.find_last_not_of(" \t\r\n");
 
     return (start == std::string::npos) ? "" : str.substr(start, end - start + 1);
+}
+
+
+std::string utils::toUpper(const std::string& str) {
+    std::string upper_str = str; // 创建一个拷贝
+    // 使用 std::transform 和 std::toupper 将字符串中的每个字符转换为大写
+    std::transform(upper_str.begin(), upper_str.end(), upper_str.begin(),
+                   [](unsigned char c){ return std::toupper(c); }); // 使用 lambda 捕获 c，并确保是 unsigned char 以避免负值问题
+    return upper_str;
 }

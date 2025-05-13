@@ -17,6 +17,7 @@ class tableManage {
 public:
     // 构造函数
     tableManage();
+    bool addHeaderToTable(const std::string& dbName, const std::string& tableName);
     // 创建表的函数
     bool createTable(const std::string& tableName, const std::string& dbName);
     // 检查表名是否有效

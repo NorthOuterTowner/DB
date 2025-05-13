@@ -17,6 +17,9 @@ public:
     datamanager(dbManager* dbMgr);
     std::string getCurrentDatabase() const;//使其他模块访问当前数据库
 
+    std::vector<std::vector<std::string>> readTableData(const std::string& dbName, const std::string& tableName);
+    std::vector<std::string> getTableColumns(const std::string& dbName, const std::string& tableName);
+
     //std::string buildFilePath(const std::string& tableName);
     std::string buildFilePath(const std::string& dbName,const std::string& tableName);
 
@@ -25,8 +28,22 @@ public:
 
     std::vector<std::vector<std::string>>selectData(const std::string& dbName,const std::string& tableName,
         const std::vector<std::string>& columnsToSelect, // 要选择的列名列表 (空表示选择所有列)
-        const std::shared_ptr<Node>& whereTree  // WHERE 子句的 AST 根节点 (由调用方解析并传入，可能为 nullptr)
-        );
+        const std::shared_ptr<Node>& whereTree,  // WHERE 子句的 AST 根节点 (由调用方解析并传入，可能为 nullptr)
+        const std::vector<std::string>& aggregateFunctions, // 聚合函数列表
+        const std::vector<std::string>& groupByColumns // GROUP BY 列名列表
+                                                     );
+
+    std::vector<std::string> calculateGlobalAggregates(
+        const std::string& tableName,
+        const std::vector<std::string>& aggregateFunctions, const std::shared_ptr<Node>& whereTree
+        ) ;
+
+    std::vector<std::vector<std::string>>selecData(const std::string& dbName,const std::string& tableName,
+                                                     const std::vector<std::string>& columnsToSelect, // 要选择的列名列表 (空表示选择所有列)
+                                                     const std::shared_ptr<Node>& whereTree,  // WHERE 子句的 AST 根节点 (由调用方解析并传入，可能为 nullptr)
+                                                     const std::vector<std::string>& aggregateFunctions, // 聚合函数列表
+                                                     const std::vector<std::string>& groupByColumns // GROUP BY 列名列表
+                                                     );
     bool updateData( const std::string& dbName,
                                  const std::string& tableName,
                                  const std::map<std::string, std::string>& setMap,

@@ -82,6 +82,8 @@ public:
     std::map<std::string, SQLVal> parseDrop(const std::string& sql);
     std::vector<std::string> getAllColumnsFromTable(const std::string& dbName, const std::string& tableName);
 
+
+    std::map<std::string, SQLVal> parSelect(const std::string& sql) ;
     std::map<std::string, SQLVal> parseInsert(const std::string& sql);
     std::map<std::string, SQLVal> parseUse(const std::string& sql);
     std::map<std::string, SQLVal> parseSelect(const std::string& sql);

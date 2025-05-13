@@ -13,6 +13,7 @@
 #include <string>
 #include <algorithm>
 #include <ctime>
+#include <unordered_set>
 #include <cctype>
 #include "lexer.h"
 namespace fs=std::filesystem;
@@ -25,21 +26,9 @@ std::string datamanager::getCurrentDatabase() const{
     return "";//如果dbMgr为null，返回空字符串
 }
 
-// // 示例函数，用于构建文件路径
-// std::string buildFilePath(const std::string& dbName, const std::string& tableName) {
-//     fs::path basePath = fs::current_path() / "res";
-//     fs::path filePath = basePath / (tableName + ".data.txt");
-//     std::cout << "Trying to open file: " << filePath.string() << std::endl;
-//     return filePath.string();
-// }
 
 // 构建文件路径（与 tableManage 保持一致：../../res/表名.data.txt）
 std::string datamanager::buildFilePath(const std::string& dbName,const std::string& tableName) {
-   // fs::path basePath = fs::current_path() / "../../res";
-    //if (!fs::exists(basePath)) {
-      //  fs::create_directories(basePath);
-    //}
-    //return (basePath / (tableName + ".data.txt")).string();
    return "../../res/"+tableName+".data.txt";
 }
 
@@ -101,6 +90,14 @@ std::vector<std::string> datamanager::splitString(const std::string& s, char del
     while (std::getline(tokenStream, token, delimiter)) {
         tokens.push_back(token);
     }
+    while (std::getline(tokenStream, token, delimiter)) {
+        // 过滤空字段并去除首尾空格
+        if (!token.empty()) {
+            token.erase(0, token.find_first_not_of(" \t\n\r"));
+            token.erase(token.find_last_not_of(" \t\n\r") + 1);
+            tokens.push_back(token);
+        }
+    }
     return tokens;
 }
 
@@ -118,174 +115,158 @@ int datamanager::findColumnIndex(const std::vector<fieldManage::FieldInfo>& colu
 // 辅助函数：将字符串值根据指定的列类型进行转换以便比较或验证
 // 处理从解析器中可能带有的单引号字符串（例如 'Alice' -> Alice）
 // 此函数用于将数据文件中的值和 WHERE/SET 子句中的值转换为列的实际类型。
+
+
+// --- 求值 WHERE 子句的 AST 函数 ---
+
+
+
+
 bool datamanager::convertValueForComparison(
-    const std::string& valueStr,         // 要转换的字符串值
-    const std::string& columnType,       // 列的数据类型
-    int& intVal, double& doubleVal, bool& boolVal, std::string& stringVal // 输出参数，存储转换结果
+    const std::string& valueStr,
+    const std::string& columnType,
+    int& intVal, double& doubleVal, bool& boolVal, std::string& stringVal
     ) {
-    std::string typeUpper = columnType;
-    std::transform(typeUpper.begin(), typeUpper.end(), typeUpper.begin(), ::toupper); // 转换为大写以便比较类型
+    std::string upperType = columnType;
+    std::transform(upperType.begin(), upperType.end(), upperType.begin(), ::toupper);
 
-    // 处理从解析器中来的字符串字面值，如果带有单引号则去除
-    // 注意：这个处理逻辑依赖于您的 Lexer 如何处理字符串字面值。
-    // 如果 Lexer 在解析时已经去除了单引号，这里就不需要了。
-    std::string cleanedValueStr = valueStr;
-    if (cleanedValueStr.size() >= 2 && cleanedValueStr.front() == '\'' && cleanedValueStr.back() == '\'') {
-        cleanedValueStr = cleanedValueStr.substr(1, cleanedValueStr.size() - 2);
+    if (upperType == "INT") {
+        try {
+            intVal = std::stoi(valueStr);
+            return true;
+        } catch (...) {
+            return false;
+        }
+    } else if (upperType == "DOUBLE" || upperType == "FLOAT") {
+        try {
+            doubleVal = std::stod(valueStr);
+            return true;
+        } catch (...) {
+            return false;
+        }
+    } else if (upperType == "BOOL" || upperType == "BOOLEAN") {
+        if (valueStr == "true" || valueStr == "TRUE" || valueStr == "1") {
+            boolVal = true;
+            return true;
+        } else if (valueStr == "false" || valueStr == "FALSE" || valueStr == "0") {
+            boolVal = false;
+            return true;
+        }
+        return false;
+    } else {
+        stringVal = valueStr;
+        return true;
     }
-
-
-    if (typeUpper == "INT") {
-        return tryStringtoInt(cleanedValueStr, intVal); // 尝试转换为 INT
-    } else if (typeUpper == "DOUBLE" || typeUpper == "FLOAT") {
-        return tryStringtoDouble(cleanedValueStr, doubleVal); // 尝试转换为 DOUBLE/FLOAT
-    } else if (typeUpper == "BOOL" || typeUpper == "BOOLEAN") {
-        return tryStringtoBool(cleanedValueStr, boolVal); // 尝试转换为 BOOL
-    } else if (typeUpper == "VARCHAR" || typeUpper == "TEXT") {
-        stringVal = cleanedValueStr; // 对于字符串类型，直接存储处理过的字符串
-        return true; // 字符串本身转换为字符串总是成功的
-    }
-    // 如果有其他数据类型（如 DATE, TIME 等），在这里添加转换逻辑
-
-    // 如果遇到未知类型，返回 false 表示转换失败
-    return false;
 }
 
 
 
-// --- 求值 WHERE 子句的 AST 函数 ---
+
 // 递归函数，用于判断一行数据是否符合 WHERE 子句的条件树
 bool datamanager::evaluateWhereClauseTree(
-    const std::shared_ptr<Node>& whereTree,                // WHERE 子句的 AST 根节点 (可能为 nullptr)
-    const std::vector<std::string>& rowValues,           // 当前行的数据值 (字符串向量)
-    const std::vector<fieldManage::FieldInfo>& columnsInfo // 表的所有列信息
+    const std::shared_ptr<Node>& whereTree,
+    const std::vector<std::string>& rowValues,
+    const std::vector<fieldManage::FieldInfo>& columnsInfo
     ) {
     if (!whereTree) {
-        return true; // 如果 AST 为空 (例如 WHERE 子句为空 或 解析失败), 则认为该行符合条件 (即不筛选)
+        return true;
     }
 
-    // 直接在解引用后的Node对象上使用std::holds_alternative
     if (std::holds_alternative<Condition>(*whereTree)) {
-        // 直接在解引用后的Node对象上使用std::get
         const auto& cond = std::get<Condition>(*whereTree);
-
-        // 查找条件中列的索引
         int colIndex = findColumnIndex(columnsInfo, cond.column);
         if (colIndex == -1) {
             std::cerr << "Error evaluating WHERE tree: Unknown column '" << cond.column << "'" << std::endl;
-            // 对未知列的条件，认为该行不符合条件
             return false;
         }
 
-        // 检查列索引是否超出当前行的范围 (用于防御性编程，理论上不应该发生，因为行字段数应与列信息匹配)
         if (colIndex >= rowValues.size()) {
             std::cerr << "Error evaluating WHERE tree: Column index " << colIndex << " out of bounds for row with " << rowValues.size() << " values." << std::endl;
             return false;
         }
 
-        // 获取列的数据类型以及当前行该列的值和条件中的值
         const std::string& columnType = columnsInfo[colIndex].fieldType;
         const std::string& rowValueStr = rowValues[colIndex];
-        const std::string& clauseValueStr = cond.value; // 从 AST 节点获取条件值 (字符串)
+        const std::string& clauseValueStr = cond.value;
 
-        // 将行值和条件值根据列类型进行转换，以便进行类型安全的比较
         int rowInt, clauseInt;
         double rowDouble, clauseDouble;
         bool rowBool, clauseBool;
-        std::string rowString, clauseString; // 用于 VARCHAR/TEXT
+        std::string rowString, clauseString;
 
-        // 尝试转换当前行的值
         bool rowConversionOk = convertValueForComparison(rowValueStr, columnType, rowInt, rowDouble, rowBool, rowString);
+        bool clauseConversionOk = convertValueForComparison(clauseValueStr, columnType, clauseInt, clauseDouble, clauseBool, clauseString);
 
-        // 尝试转换条件中的值
-        bool clauseConversionOk = convertValueForComparison(clauseValueStr, columnType, clauseInt, clauseDouble, clauseBool, clauseString); // 注意: 传递 clauseValueStr
-
-        // 如果任何一个值根据列类型转换失败，则认为条件不满足
         if (!rowConversionOk || !clauseConversionOk) {
-            // 如果非空值转换失败，输出警告。空字符串尝试转换为非字符串类型会失败，这通常是正确的行为。
-            if (!rowValueStr.empty() || !clauseValueStr.empty()){
-                std::cerr << "Warning: Type conversion failed during WHERE tree evaluation for column '" << cond.column
-                          << "' (type: " << columnType << ") comparing row value '" << rowValueStr
-                          << "' with clause value '" << clauseValueStr << "'. Condition is false." << std::endl;
-            }
-            return false; // 条件不满足，因为值类型不匹配或转换失败
+            std::cerr << "Warning: Type conversion failed during WHERE tree evaluation for column '" << cond.column
+                      << "' (type: " << columnType << ") comparing row value '" << rowValueStr
+                      << "' with clause value '" << clauseValueStr << "'. Condition is false." << std::endl;
+            return false;
         }
 
-        // 执行基于类型和运算符的比较
         std::string opUpper = cond.op;
-        std::transform(opUpper.begin(), opUpper.end(), opUpper.begin(), ::toupper); // 运算符转换为大写
+        std::transform(opUpper.begin(), opUpper.end(), opUpper.begin(), ::toupper);
 
-        std::string typeUpper = columnType; // 获取大写后的类型字符串
-        std::transform(typeUpper.begin(), typeUpper.end(), typeUpper.begin(), ::toupper);
+        std::string upperType = columnType;
+        std::transform(upperType.begin(), upperType.end(), upperType.begin(), ::toupper);
 
-        if (typeUpper == "INT") {
+        std::cout << "[DEBUG] WHERE Clause Evaluation for " << upperType << ": Row Int: " << rowInt << ", Clause Int: " << clauseInt << ", Operator: " << opUpper << std::endl;
+
+        if (upperType == "INT") {
             if (opUpper == "=" || opUpper == "==") return rowInt == clauseInt;
             if (opUpper == "!=") return rowInt != clauseInt;
             if (opUpper == ">") return rowInt > clauseInt;
             if (opUpper == "<") return rowInt < clauseInt;
             if (opUpper == ">=") return rowInt >= clauseInt;
             if (opUpper == "<=") return rowInt <= clauseInt;
-        } else if (typeUpper == "DOUBLE" || typeUpper == "FLOAT") { // 使用 typeUpper
-            // 浮点数比较可能需要考虑精度，这里使用精确比较
+        } else if (upperType == "DOUBLE" || upperType == "FLOAT") {
             if (opUpper == "=" || opUpper == "==") return rowDouble == clauseDouble;
             if (opUpper == "!=") return rowDouble != clauseDouble;
             if (opUpper == ">") return rowDouble > clauseDouble;
             if (opUpper == "<") return rowDouble < clauseDouble;
             if (opUpper == ">=") return rowDouble >= clauseDouble;
             if (opUpper == "<=") return rowDouble <= clauseDouble;
-        } else if (typeUpper == "BOOL" || typeUpper == "BOOLEAN") { // 使用 typeUpper
+        } else if (upperType == "BOOL" || upperType == "BOOLEAN") {
             if (opUpper == "=" || opUpper == "==") return rowBool == clauseBool;
             if (opUpper == "!=") return rowBool != clauseBool;
-            // 布尔类型通常不支持 >,<,>=,<= 这样的比较
-            // std::cerr << "Warning: Comparison operator '" << cond.op << "' used with BOOL column '" << cond.column << "'. Only = and != are supported. Condition is false." << std::endl; // 可选警告
-            return false; // 布尔类型使用了不支持的运算符
-        } else if (typeUpper == "VARCHAR" || typeUpper == "TEXT") { // 使用 typeUpper
+            return false;
+        } else {
             if (opUpper == "=" || opUpper == "==") return rowString == clauseString;
             if (opUpper == "!=") return rowString != clauseString;
-            // 字符串也支持字典序比较 >,<,>=,<=
             if (opUpper == ">") return rowString > clauseString;
             if (opUpper == "<") return rowString < clauseString;
             if (opUpper == ">=") return rowString >= clauseString;
             if (opUpper == "<=") return rowString <= clauseString;
+            return false;
         }
-        // 如果有其他数据类型，在这里添加相应的比较逻辑
-
-        std::cerr << "Error evaluating WHERE tree: Unsupported operator '" << cond.op << "' for column type '" << columnType << "'. Condition is false." << std::endl;
-        return false; // 未知的运算符或类型组合
     } else if (std::holds_alternative<LogicalOp>(*whereTree)) {
-        // 当前节点是一个逻辑运算符 (LogicalOp)
         const auto& logOp = std::get<LogicalOp>(*whereTree);
 
-        // 递归求值左子树
         bool leftResult = evaluateWhereClauseTree(logOp.left, rowValues, columnsInfo);
 
-        // 根据逻辑运算符执行短路求值 (Short-circuit evaluation)
         std::string opUpper = logOp.op;
         std::transform(opUpper.begin(), opUpper.end(), opUpper.begin(), ::toupper);
 
         if (opUpper == "AND") {
-            if (!leftResult) return false; // 如果左边为 false，AND 结果一定是 false，无需计算右边
+            if (!leftResult) return false;
         } else if (opUpper == "OR") {
-            if (leftResult) return true; // 如果左边为 true，OR 结果一定是 true，无需计算右边
+            if (leftResult) return true;
         } else {
-            // 如果解析器正确，不应该出现未知的逻辑运算符
             std::cerr << "Internal Error: Unknown logical operator '" << logOp.op << "' in WHERE tree." << std::endl;
-            return false; // 未知的逻辑运算符
+            return false;
         }
 
-        // 如果没有短路，则递归求值右子树并合并结果
         bool rightResult = evaluateWhereClauseTree(logOp.right, rowValues, columnsInfo);
 
         if (opUpper == "AND") {
-            return leftResult && rightResult; // 实际执行 AND (如果没短路，leftResult 必为 true)
+            return leftResult && rightResult;
         } else if (opUpper == "OR") {
-            return leftResult || rightResult; // 实际执行 OR (如果没短路，leftResult 必为 false)
+            return leftResult || rightResult;
         }
-        // 已经处理了所有情况，这里的 return 不会执行到
+
         return false;
     }
 
-    // 如果节点既不是 Condition 也不是 LogicalOp，说明 AST 结构有问题 (不应该发生)
     std::cerr << "Internal Error: Unexpected node type in WHERE tree." << std::endl;
     return false;
 }
@@ -477,9 +458,18 @@ bool datamanager::insertData(const std::string& dbName,const std::string& tableN
              std::cerr << "Failed to create data file: " << dataFilePath << std::endl;
              return false;
          }
+         // 写入表头
+         for (size_t i = 0; i < columnsInfo.size(); ++i) {
+             if (i > 0) {
+                 createFile << ",";
+             }
+             createFile << columnsInfo[i].fieldName;
+         }
+         createFile << std::endl;
          createFile.close();
          std::cout << "[DEBUG] Data file created: " << dataFilePath << std::endl;
      }
+
 
 
     // 打开数据文件以追加模式写入
@@ -687,102 +677,464 @@ bool datamanager::deleteData(const std::string& dbName,const std::string& tableN
 
 }
 
+
+
+int findColumnIndexByName(const std::vector<fieldManage::FieldInfo>& columnsInfo, const std::string& columnName) {
+    for (size_t i = 0; i < columnsInfo.size(); ++i) {
+        if (columnsInfo[i].fieldName == columnName) {
+            return static_cast<int>(i); // 找到列名匹配的索引
+        }
+    }
+    return -1; // 如果没有找到，返回-1表示错误
+}
+
+
+
+
+
+
+std::vector<std::vector<std::string>> datamanager::readTableData(const std::string& dbName, const std::string& tableName) {
+    std::vector<std::vector<std::string>> tableData;
+
+    // 构建表文件路径
+    std::string filePath = buildFilePath(dbName, tableName);
+
+    // 打开表文件
+    std::ifstream file(filePath);
+    if (!file.is_open()) {
+        std::cerr << "[ERROR] Failed to open table file: " << filePath << std::endl;
+        return tableData;
+    }
+
+    // 获取表的字段信息
+    std::vector<fieldManage::FieldInfo> fields = fieldMgr.getFieldsInfo(dbName, tableName);
+
+    std::string line;
+    // 跳过表头行
+    if (std::getline(file, line)) {
+        // 读取数据行
+        while (std::getline(file, line)) {
+            // 分割每行数据
+            std::vector<std::string> values = splitString(line, ',');
+
+            // 验证数据行长度是否与表结构匹配
+            if (values.size() == fields.size()) {
+                tableData.push_back(values);
+            } else {
+                std::cerr << "[WARNING] Invalid data row in table " << tableName << ": " << line << std::endl;
+            }
+        }
+    }
+
+    file.close();
+    return tableData;
+}
+
+std::vector<std::string> datamanager::getTableColumns(const std::string& dbName, const std::string& tableName) {
+    std::vector<std::string> columnNames;
+
+    // 使用 fieldManage 获取表的字段信息
+    std::vector<fieldManage::FieldInfo> fields = fieldMgr.getFieldsInfo(dbName, tableName);
+
+    // 从字段信息中提取列名
+    for (const auto& field : fields) {
+        columnNames.push_back(field.fieldName);
+    }
+
+    return columnNames;
+}
+
+
+
+
+
+
+
+
+std::vector<std::string> datamanager::calculateGlobalAggregates(
+    const std::string& tableName,
+    const std::vector<std::string>& aggregateFunctions,
+    const std::shared_ptr<Node>& whereTree
+    ) {
+    std::vector<std::string> result;
+    std::string dbName = getCurrentDatabase();
+    std::vector<std::vector<std::string>> tableData = readTableData(dbName, tableName);
+    std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(dbName, tableName);
+
+    std::vector<std::pair<std::string, std::string>> parsedAggregateFunctions;
+    for (const auto& func : aggregateFunctions) {
+        size_t openPos = func.find('(');
+        size_t closePos = func.find(')');
+        if (openPos != std::string::npos && closePos != std::string::npos && openPos < closePos) {
+            std::string funcName = utils::toUpper(utils::strip(func.substr(0, openPos)));
+            std::string param = utils::strip(func.substr(openPos + 1, closePos - openPos - 1));
+            parsedAggregateFunctions.emplace_back(funcName, param);
+        }
+    }
+
+    int count = 0;
+    for (const auto& row : tableData) {
+        if (evaluateWhereClauseTree(whereTree, row, columnsInfo)) {
+            count++;
+        }
+    }
+
+    for (const auto& [funcName, param] : parsedAggregateFunctions) {
+        if (funcName == "COUNT") {
+            result.push_back(std::to_string(count));
+        } else {
+            result.push_back("NULL");
+        }
+    }
+
+    return result;
+}
+
 // 执行 SELECT 查询
-std::vector<std::vector<std::string>> datamanager::selectData(
+std::vector<std::vector<std::string>> datamanager::selecData(
     const std::string& dbName,
     const std::string& tableName,
-    const std::vector<std::string>& columnsToSelect, // 要选择的列名列表 (空表示选择所有列)
-    const std::shared_ptr<Node>& whereTree // WHERE 子句的 AST 根节点 (由调用方解析并传入，可能为 nullptr)
+    const std::vector<std::string>& columnsToSelect,
+    const std::shared_ptr<Node>& whereTree,
+    const std::vector<std::string>& aggregateFunctions,
+    const std::vector<std::string>& groupByColumns
     ) {
-    std::vector<std::vector<std::string>> results; // 存储查询结果
+    std::vector<std::vector<std::string>> results;
 
-    // 1. 验证表是否存在
-    tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
-    if (tableInfo.table_name.empty()) {
-        std::cerr << "Error selecting data: Table '" << tableName << "' does not exist in database '" << dbName << "'." << std::endl;
-        return results; // 表不存在，返回空结果
-    }
+    // 检查输入参数
+    std::cout << "[DEBUG] Executor - Input parameters:" << std::endl;
+    std::cout << "[DEBUG]   dbName: " << dbName << std::endl;
+    std::cout << "[DEBUG]   tableName: " << tableName << std::endl;
+    std::cout << "[DEBUG]   columnsToSelect: ";
+    for (const auto& col : columnsToSelect) std::cout << col << " ";
+    std::cout << std::endl;
+    std::cout << "[DEBUG]   aggregateFunctions: ";
+    for (const auto& func : aggregateFunctions) std::cout << func << " ";
+    std::cout << std::endl;
+    std::cout << "[DEBUG]   groupByColumns: ";
+    for (const auto& col : groupByColumns) std::cout << col << " ";
+    std::cout << std::endl;
 
-    // 2. 获取表的列信息
-    std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(dbName,tableName);
-    if (columnsInfo.empty()) {
-        std::cerr << "Error selecting data: Could not retrieve column information for table '" << tableName << "'." << std::endl;
-        // 即使是空表也应该有列信息，这是一个错误
-        return results; // 获取列信息失败，返回空结果
-    }
 
-    // 3. 确定要选择的列以及它们在数据行中的索引
-    std::vector<int> selectColumnIndices; // 存储要选择的列的索引
-    if (columnsToSelect.empty()) {
-        // 如果未指定列，则选择所有列
-        for (size_t i = 0; i < columnsInfo.size(); ++i) {
-            selectColumnIndices.push_back(static_cast<int>(i));
+
+    //1. 验证表是否存在
+        tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
+        if (tableInfo.table_name.empty()) {
+            std::cerr << "Error selecting data: Table '" << tableName << "' does not exist in database '" << dbName << "'." << std::endl;
+            return results; // 表不存在，返回空结果
         }
-    } else {
-        // 如果指定了列，则查找这些列的索引
-        for (const auto& colName : columnsToSelect) {
-            int index = findColumnIndex(columnsInfo, colName);
-            if (index == -1) {
-                std::cerr << "Error selecting data: Unknown column '" << colName << "' specified in SELECT list for table '" << tableName << "'." << std::endl;
-                return results; // SELECT 列表中包含未知列，返回空结果并报错
+
+        // 2. 获取表的列信息
+        std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(dbName,tableName);
+        if (columnsInfo.empty()) {
+            std::cerr << "Error selecting data: Could not retrieve column information for table '" << tableName << "'." << std::endl;
+            // 即使是空表也应该有列信息，这是一个错误
+            return results; // 获取列信息失败，返回空结果
+        }
+
+    // 解析聚合函数
+    std::vector<std::pair<std::string, std::string>> parsedAggregateFunctions;
+    for (const auto& func : aggregateFunctions) {
+        size_t openPos = func.find('(');
+        size_t closePos = func.find(')');
+        if (openPos != std::string::npos && closePos != std::string::npos && openPos < closePos) {
+            std::string funcName = utils::toUpper(utils::strip(func.substr(0, openPos)));
+            std::string param = utils::strip(func.substr(openPos + 1, closePos - openPos - 1));
+            parsedAggregateFunctions.emplace_back(funcName, param);
+        }
+    }
+
+    // 无聚合函数的简单查询
+    if (aggregateFunctions.empty()) {
+        std::vector<int> selectIndices;
+        if (columnsToSelect.empty()) {
+            // 选择所有列
+            for (size_t i = 0; i < columnsInfo.size(); i++) {
+                selectIndices.push_back(i);
             }
-            selectColumnIndices.push_back(index);
-        }
-    }
-
-    // 4. WHERE 子句的解析工作已由调用方完成，whereTree 参数直接传入。
-    //    如果 whereTree 是 nullptr，evaluateWhereClauseTree 会处理为不筛选。
-
-    // 5. 打开数据文件进行读取
-    std::string dataFilePath = "../../res/" + tableName + ".data.txt"; // 构建数据文件路径
-    std::ifstream dataFile(dataFilePath);
-    if (!dataFile.is_open()) {
-        // 如果数据文件不存在，说明表是空的。对于 SELECT 来说这不是错误。
-        // std::cout << "Info: Data file '" << dataFilePath << "' not found. Table is empty." << std::endl; // 可选的信息提示
-        return results; // 返回空结果 (正确处理了空表的情况)
-    }
-
-    // 6. 逐行处理数据文件
-    std::string line;
-    int rowCount = 0; // 用于行号提示错误
-    while (std::getline(dataFile, line)) { // 逐行读取
-        rowCount++;
-        std::vector<std::string> rowValues = splitString(line, ','); // 将行按逗号分割成各个字段的值
-
-        // 在处理前，检查当前行的字段数量是否与表的列数一致，避免处理格式错误的数据行
-        if (rowValues.size() != columnsInfo.size()) {
-            std::cerr << "Warning: Skipping row " << rowCount << " in '" << tableName << ".data.txt' due to unexpected number of columns ("
-                      << rowValues.size() << " instead of " << columnsInfo.size() << "). This row cannot be evaluated." << std::endl;
-            continue; // 跳过处理此行
+        } else {
+            // 选择指定列
+            for (const auto& col : columnsToSelect) {
+                int idx = findColumnIndex(columnsInfo, col);
+                if (idx == -1) {
+                    std::cerr << "Error: Unknown column '" << col << "' in table '" << tableName << "'." << std::endl;
+                    return results;
+                }
+                selectIndices.push_back(idx);
+            }
         }
 
+        // 读取数据文件
+        std::string dataFilePath = "../../res/" + tableName + ".data.txt";
+        std::ifstream dataFile(dataFilePath);
+        if (!dataFile.is_open()) {
+            std::cerr << "Error: Could not open data file for table '" << tableName << "'." << std::endl;
+            return results;
+        }
 
-        // 7. 使用传入的 WHERE AST 求值当前行
-        if (evaluateWhereClauseTree(whereTree, rowValues, columnsInfo)) {
-            // 8. 如果 evaluateWhereClauseTree 返回 true，表示当前行符合 WHERE 条件，则提取指定列
-            std::vector<std::string> selectedRow; // 存储当前行中被选中的列的值
-            for (int index : selectColumnIndices) { // 遍历要选择的列的索引
-                // 由于前面的检查，index < rowValues.size() 在处理格式正确的行时应该总是成立
-                if (index < rowValues.size()) { // 防御性检查
-                    selectedRow.push_back(rowValues[index]); // 添加指定列的值
-                } else {
-                    // 内部错误，列索引越界
-                    std::cerr << "Internal Error: Column index " << index << " out of bounds during selection for row " << rowCount << "." << std::endl;
-                    selectedRow.push_back(""); // 添加一个占位符或根据需求处理错误
+        std::string line;
+        int rowCount = 0;
+        while (std::getline(dataFile, line)) {
+            rowCount++;
+            std::vector<std::string> rowValues = splitString(line, ',');
+
+            // 验证行格式
+            if (rowValues.size() != columnsInfo.size()) {
+                std::cerr << "Warning: Skipping malformed row " << rowCount << " (expected "
+                          << columnsInfo.size() << " columns, got " << rowValues.size() << ")" << std::endl;
+                continue;
+            }
+
+            // 应用 WHERE 过滤
+            if (whereTree && !evaluateWhereClauseTree(whereTree, rowValues, columnsInfo)) {
+                continue;
+            }
+
+            // 收集结果行
+            std::vector<std::string> selectedRow;
+            for (int idx : selectIndices) {
+                selectedRow.push_back(rowValues[idx]);
+            }
+            results.push_back(selectedRow);
+        }
+
+        dataFile.close();
+        return results;
+    }
+
+    // 处理聚合查询
+    if (!groupByColumns.empty()) {
+        // 带 GROUP BY 的聚合查询
+        std::unordered_map<std::string, std::vector<std::vector<std::string>>> groupedRows;
+
+        // 读取数据文件并分组
+        std::string dataFilePath = "../../res/" + tableName + ".data.txt";
+        std::ifstream dataFile(dataFilePath);
+        if (!dataFile.is_open()) {
+            std::cerr << "Error: Could not open data file for table '" << tableName << "'." << std::endl;
+            return results;
+        }
+
+        std::string line;
+        int rowCount = 0;
+        while (std::getline(dataFile, line)) {
+            rowCount++;
+            std::vector<std::string> rowValues = splitString(line, ',');
+
+            // 验证行格式
+            if (rowValues.size() != columnsInfo.size()) {
+                std::cerr << "Warning: Skipping malformed row " << rowCount << " (expected "
+                          << columnsInfo.size() << " columns, got " << rowValues.size() << ")" << std::endl;
+                continue;
+            }
+
+            // 应用 WHERE 过滤
+            if (whereTree && !evaluateWhereClauseTree(whereTree, rowValues, columnsInfo)) {
+                continue;
+            }
+
+            // 生成分组键
+            std::string groupKey;
+            for (const auto& col : groupByColumns) {
+                int idx = findColumnIndex(columnsInfo, col);
+                if (idx != -1) {
+                    groupKey += rowValues[idx] + "\t";
                 }
             }
-            results.push_back(selectedRow); // 将提取出的行添加到结果集中
-        }
-    }
 
-    // 9. 关闭数据文件
-    if (dataFile.is_open()) {
+            groupedRows[groupKey].push_back(rowValues);
+        }
+
         dataFile.close();
+
+        // 计算每个分组的聚合结果
+        for (const auto& [groupKey, groupRows] : groupedRows) {
+            std::vector<std::string> resultRow;
+
+            // 添加分组列的值
+            std::vector<std::string> groupValues = splitString(groupKey, '\t');
+            resultRow.insert(resultRow.end(), groupValues.begin(), groupValues.end());
+
+            // 计算聚合函数
+            for (const auto& [funcName, param] : parsedAggregateFunctions) {
+                if (funcName == "COUNT") {
+                    if (param == "*") {
+                        resultRow.push_back(std::to_string(groupRows.size()));
+                    } else {
+                        int colIdx = findColumnIndex(columnsInfo, param);
+                        if (colIdx == -1) {
+                            resultRow.push_back("0");
+                            continue;
+                        }
+                        int count = 0;
+                        for (const auto& row : groupRows) {
+                            if (!row[colIdx].empty()) count++;
+                        }
+                        resultRow.push_back(std::to_string(count));
+                    }
+                } else if (funcName == "SUM" || funcName == "AVG" || funcName == "MAX" || funcName == "MIN") {
+                    int colIdx = findColumnIndex(columnsInfo, param);
+                    if (colIdx == -1) {
+                        resultRow.push_back("NULL");
+                        continue;
+                    }
+
+                    std::vector<double> values;
+                    for (const auto& row : groupRows) {
+                        if (!row[colIdx].empty()) {
+                            try {
+                                values.push_back(std::stod(row[colIdx]));
+                            } catch (...) {
+                                // 转换失败，忽略该值
+                            }
+                        }
+                    }
+
+                    if (values.empty()) {
+                        resultRow.push_back(funcName == "AVG" ? "0" : "NULL");
+                        continue;
+                    }
+
+                    if (funcName == "SUM") {
+                        double sum = 0.0;
+                        for (double val : values) sum += val;
+                        resultRow.push_back(std::to_string(sum));
+                    } else if (funcName == "AVG") {
+                        double sum = 0.0;
+                        for (double val : values) sum += val;
+                        resultRow.push_back(std::to_string(sum / values.size()));
+                    } else if (funcName == "MAX") {
+                        double maxVal = *std::max_element(values.begin(), values.end());
+                        resultRow.push_back(std::to_string(maxVal));
+                    } else if (funcName == "MIN") {
+                        double minVal = *std::min_element(values.begin(), values.end());
+                        resultRow.push_back(std::to_string(minVal));
+                    }
+                } else {
+                    resultRow.push_back("NULL");
+                }
+            }
+
+            results.push_back(resultRow);
+        }
+    } else {
+        // 不带 GROUP BY 的聚合查询
+        std::vector<std::vector<std::string>> filteredRows;
+
+        // 读取数据文件并应用 WHERE 过滤
+        std::string dataFilePath = "../../res/" + tableName + ".data.txt";
+        std::ifstream dataFile(dataFilePath);
+        if (!dataFile.is_open()) {
+            std::cerr << "Error: Could not open data file for table '" << tableName << "'." << std::endl;
+            return results;
+        }
+
+        std::string line;
+        int rowCount = 0;
+        while (std::getline(dataFile, line)) {
+            rowCount++;
+            std::vector<std::string> rowValues = splitString(line, ',');
+
+            // 验证行格式
+            if (rowValues.size() != columnsInfo.size()) {
+                std::cerr << "Warning: Skipping malformed row " << rowCount << " (expected "
+                          << columnsInfo.size() << " columns, got " << rowValues.size() << ")" << std::endl;
+                continue;
+            }
+
+            // 应用 WHERE 过滤
+            if (whereTree && !evaluateWhereClauseTree(whereTree, rowValues, columnsInfo)) {
+                continue;
+            }
+
+            filteredRows.push_back(rowValues);
+        }
+
+        dataFile.close();
+
+        // 计算全局聚合结果
+        std::vector<std::string> resultRow;
+        for (const auto& [funcName, param] : parsedAggregateFunctions) {
+            if (funcName == "COUNT") {
+                if (param == "*") {
+                    resultRow.push_back(std::to_string(filteredRows.size()));
+                } else {
+                    int colIdx = findColumnIndex(columnsInfo, param);
+                    if (colIdx == -1) {
+                        resultRow.push_back("0");
+                        continue;
+                    }
+                    int count = 0;
+                    for (const auto& row : filteredRows) {
+                        if (!row[colIdx].empty()) count++;
+                    }
+                    resultRow.push_back(std::to_string(count));
+                }
+            } else if (funcName == "SUM" || funcName == "AVG" || funcName == "MAX" || funcName == "MIN") {
+                int colIdx = findColumnIndex(columnsInfo, param);
+                if (colIdx == -1) {
+                    resultRow.push_back("NULL");
+                    continue;
+                }
+
+                std::vector<double> values;
+                for (const auto& row : filteredRows) {
+                    if (!row[colIdx].empty()) {
+                        try {
+                            values.push_back(std::stod(row[colIdx]));
+                        } catch (...) {
+                            // 转换失败，忽略该值
+                        }
+                    }
+                }
+
+                if (values.empty()) {
+                    resultRow.push_back(funcName == "AVG" ? "0" : "NULL");
+                    continue;
+                }
+
+                if (funcName == "SUM") {
+                    double sum = 0.0;
+                    for (double val : values) sum += val;
+                    resultRow.push_back(std::to_string(sum));
+                } else if (funcName == "AVG") {
+                    double sum = 0.0;
+                    for (double val : values) sum += val;
+                    resultRow.push_back(std::to_string(sum / values.size()));
+                } else if (funcName == "MAX") {
+                    double maxVal = *std::max_element(values.begin(), values.end());
+                    resultRow.push_back(std::to_string(maxVal));
+                } else if (funcName == "MIN") {
+                    double minVal = *std::min_element(values.begin(), values.end());
+                    resultRow.push_back(std::to_string(minVal));
+                }
+            } else {
+                resultRow.push_back("NULL");
+            }
+        }
+
+        if (!resultRow.empty()) {
+            results.push_back(resultRow);
+        }
     }
 
     std::cout << "Successfully selected " << results.size() << " rows from table '" << tableName << "'." << std::endl;
-    return results; // 返回查询结果
+    return results;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // 执行 UPDATE 操作
