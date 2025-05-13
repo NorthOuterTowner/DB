@@ -1,4 +1,7 @@
 #include "datamanager.h"
+#include "affair.h"
+#include "logger.h"
+#include "session.h"
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -17,7 +20,10 @@
 #include <cctype>
 #include "lexer.h"
 namespace fs=std::filesystem;
-datamanager::datamanager(dbManager* dbMgr):dbMgr(dbMgr) {}
+
+datamanager::datamanager(dbManager* dbMgr) : dbMgr(dbMgr), affair("undo.txt",nullptr) {
+    // 构造函数初始化 affair
+}
 
 std::string datamanager::getCurrentDatabase() const{
     if(dbMgr){
@@ -27,60 +33,73 @@ std::string datamanager::getCurrentDatabase() const{
 }
 
 
+// 在 datamanager 类中添加备份数据文件的函数
+void datamanager::backupDataFile(const std::string& dbName, const std::string& tableName) {
+    std::string dataFilePath = buildFilePath(dbName, tableName);
+    std::string backupDataFilePath = "../../res/backup/" + tableName + "_data_backup.txt";
+    QFile dataFile(QString::fromStdString(dataFilePath));
+    QFile backupDataFile(QString::fromStdString(backupDataFilePath));
+
+    if (dataFile.open(QIODevice::ReadOnly | QIODevice::Text) && backupDataFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream in(&dataFile);
+        QTextStream out(&backupDataFile);
+        out << in.readAll();
+        dataFile.close();
+        backupDataFile.close();
+    }
+}
+
 // 构建文件路径（与 tableManage 保持一致：../../res/表名.data.txt）
-std::string datamanager::buildFilePath(const std::string& dbName,const std::string& tableName) {
-   return "../../res/"+tableName+".data.txt";
+std::string datamanager::buildFilePath(const std::string& dbName, const std::string& tableName) {
+    return "../../res/" + tableName + ".data.txt";
+
 }
 
-bool datamanager::tryStringtoInt(const std::string& s,int& out){
-    if(s.empty())return false;
-    try{
-        size_t pos=0;
-        out=std::stoi(s,&pos);
-        //检查是否整个字符串都被转换了 并且没有剩余非数字字符
-        return pos==s.size();
-    }catch (const std::invalid_argument& ia){
-        //无效参数 不是一个有效的数字格式
+bool datamanager::tryStringtoInt(const std::string& s, int& out) {
+    if (s.empty()) return false;
+    try {
+        size_t pos = 0;
+        out = std::stoi(s, &pos);
+        // 检查是否整个字符串都被转换了 并且没有剩余非数字字符
+        return pos == s.size();
+    } catch (const std::invalid_argument& ia) {
+        // 无效参数 不是一个有效的数字格式
         return false;
-    }catch(const std::out_of_range& oor){
-        //超出int范围
+    } catch (const std::out_of_range& oor) {
+        // 超出int范围
         return false;
     }
 }
 
-bool datamanager::tryStringtoDouble(const std::string& s,double& out){
-    if(s.empty())return false;
-    try{
-        size_t pos=0;
-        out = std::stod(s,&pos);
-        //检查是否整个字符串都被替换了
-        return pos==s.size();
-    }catch(const std::invalid_argument& ia){
+bool datamanager::tryStringtoDouble(const std::string& s, double& out) {
+    if (s.empty()) return false;
+    try {
+        size_t pos = 0;
+        out = std::stod(s, &pos);
+        // 检查是否整个字符串都被替换了
+        return pos == s.size();
+    } catch (const std::invalid_argument& ia) {
         return false;
-    }catch (const std::out_of_range& oor){
+    } catch (const std::out_of_range& oor) {
         return false;
     }
 }
 
-bool datamanager::tryStringtoBool(const std::string& s,bool& out){
-    //简化处理：接收 true、false、1、0
-    //需要一个非const的副本进行转换
-    std::string upper_s=s;//创建一个非const的副本
-    //将副本转换为大写
-    std::transform(upper_s.begin(),upper_s.end(),upper_s.begin(),[](unsigned char c){
-        return std::toupper(c);
-    });
+bool datamanager::tryStringtoBool(const std::string& s, bool& out) {
+    // 简化处理：接收 true、false、1、0
+    std::string lower_s;
+    lower_s.resize(s.size());
+    // 将转换结果存储到 lower_s 中
+    std::transform(s.begin(), s.end(), lower_s.begin(), ::tolower);
 
-    //进行大写比较
-    if(upper_s=="TRUE"||upper_s =="1"){
-        out=true;
+    if (lower_s == "true" || lower_s == "1" || lower_s == "TRUE") {
+        out = true;
         return true;
-    }else if(upper_s=="FALSE"||upper_s=="0"){
-        out=false;
+    } else if (lower_s == "false" || lower_s == "0" || lower_s == "FALSE") {
+        out = false;
         return true;
     }
     return false;
-
 }
 
 std::vector<std::string> datamanager::splitString(const std::string& s, char delimiter) {
@@ -110,7 +129,6 @@ int datamanager::findColumnIndex(const std::vector<fieldManage::FieldInfo>& colu
     }
     return -1; // 未找到
 }
-
 
 // 辅助函数：将字符串值根据指定的列类型进行转换以便比较或验证
 // 处理从解析器中可能带有的单引号字符串（例如 'Alice' -> Alice）
@@ -157,11 +175,32 @@ bool datamanager::convertValueForComparison(
         stringVal = valueStr;
         return true;
     }
+//<<<<<<< HEAD
 }
 
 
 
 
+//=======
+
+//     if (typeUpper == "INT") {
+//         return tryStringtoInt(cleanedValueStr, intVal); // 尝试转换为 INT
+//     } else if (typeUpper == "DOUBLE" || typeUpper == "FLOAT") {
+//         return tryStringtoDouble(cleanedValueStr, doubleVal); // 尝试转换为 DOUBLE/FLOAT
+//     } else if (typeUpper == "BOOL" || typeUpper == "BOOLEAN") {
+//         return tryStringtoBool(cleanedValueStr, boolVal); // 尝试转换为 BOOL
+//     } else if (typeUpper == "VARCHAR" || typeUpper == "TEXT") {
+//         stringVal = cleanedValueStr; // 对于字符串类型，直接存储处理过的字符串
+//         return true; // 字符串本身转换为字符串总是成功的
+//     }
+//     // 如果有其他数据类型（如 DATE, TIME 等），在这里添加转换逻辑
+
+//     // 如果遇到未知类型，返回 false 表示转换失败
+//     return false;
+// }
+
+// --- 求值 WHERE 子句的 AST 函数 ---
+//>>>>>>> 9e3794f9e4ed8e4a413a17e5976ebb9162f7bbed
 // 递归函数，用于判断一行数据是否符合 WHERE 子句的条件树
 bool datamanager::evaluateWhereClauseTree(
     const std::shared_ptr<Node>& whereTree,
@@ -271,7 +310,6 @@ bool datamanager::evaluateWhereClauseTree(
     return false;
 }
 
-
 // 辅助函数：解析 SET 子句 ("col1=val1, col2=val2") 为列索引和值的映射
 // 返回一个 map，键是列的索引，值是要更新的字符串
 std::map<int, std::string> datamanager::parseSetClause(
@@ -303,7 +341,6 @@ std::map<int, std::string> datamanager::parseSetClause(
         columnName.erase(columnName.find_last_not_of(" \t") + 1);
         valueStr.erase(0, valueStr.find_first_not_of(" \t"));
         valueStr.erase(valueStr.find_last_not_of(" \t") + 1);
-
 
         // 查找列名对应的索引
         int colIndex = findColumnIndex(columnsInfo, columnName);
@@ -343,7 +380,6 @@ std::map<int, std::string> datamanager::parseSetClause(
     return updates; // 返回包含所有有效更新的 map
 }
 
-
 // 辅助函数：将一个字符串向量（一行数据）用逗号连接成一个字符串
 std::string datamanager::joinRowValues(const std::vector<std::string>& rowValues) {
     std::ostringstream oss;
@@ -356,11 +392,10 @@ std::string datamanager::joinRowValues(const std::vector<std::string>& rowValues
     return oss.str();
 }
 
-//实现 updateTableRecordCount方法
-void datamanager::updateTableRecordCount(const std::string& dbName,const std::string& tableName,int count){
-    tableMgr.updateTableRecordCount(dbName,tableName,count);
+// 实现 updateTableRecordCount 方法
+void datamanager::updateTableRecordCount(const std::string& dbName, const std::string& tableName, int count) {
+    tableMgr.updateTableRecordCount(dbName, tableName, count);
 }
-
 
 void datamanager::updateTableLastModifiedDate(const std::string& dbName, const std::string& tableName) {
     std::string tableDescFile = "../../res/" + dbName + ".tb.txt";
@@ -423,8 +458,17 @@ void datamanager::updateTableLastModifiedDate(const std::string& dbName, const s
     tbFile.close();
 }
 
-bool datamanager::insertData(const std::string& dbName,const std::string& tableName,const std::vector<std::string>& values){
-    std::cout << "[DEBUG] Entered datamanager::insertData()" << std::endl;
+bool datamanager::insertData(const std::string& dbName, const std::string& tableName, const std::vector<std::string>& values) {
+    // 记录事务操作
+    QString sql = QString("INSERT INTO %1 VALUES (").arg(QString::fromStdString(tableName));
+    for (size_t i = 0; i < values.size(); ++i) {
+        sql += QString("'%1'").arg(QString::fromStdString(values[i]));
+        if (i < values.size() - 1) {
+            sql += ", ";
+        }
+    }
+    sql += ");";
+    affair.writeToUndo(sql);
 
     // 获取表信息
     tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
@@ -433,16 +477,17 @@ bool datamanager::insertData(const std::string& dbName,const std::string& tableN
         return false;
     }
 
-    //获取表的详细列信息
-    std::vector<fieldManage::FieldInfo>columnsInfo=fieldMgr.getFieldsInfo(dbName,tableName);
+    // 获取表的详细列信息
+    std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(dbName, tableName);
 
     // 验证插入数据
-    if (!validateInsertData(tableInfo,columnsInfo, values)) {
+    if (!validateInsertData(tableInfo, columnsInfo, values)) {
         std::cerr << "Invalid data for table " << tableName << std::endl;
         return false;
     }
 
     // 构建数据文件路径
+//<<<<<<< HEAD
     //std::string dataFilePath = "../../res/" + tableName + ".data.txt";
 
      std::string dataFilePath = buildFilePath(dbName,tableName);
@@ -470,6 +515,11 @@ bool datamanager::insertData(const std::string& dbName,const std::string& tableN
          std::cout << "[DEBUG] Data file created: " << dataFilePath << std::endl;
      }
 
+   // std::string dataFilePath = buildFilePath(dbName, tableName);
+//>>>>>>> 9e3794f9e4ed8e4a413a17e5976ebb9162f7bbed
+
+    // 如果数据文件不存在，先创建一个空文件
+
 
 
     // 打开数据文件以追加模式写入
@@ -492,33 +542,35 @@ bool datamanager::insertData(const std::string& dbName,const std::string& tableN
     dataFile.close();
 
     // 更新表的记录数
-    updateTableRecordCount(dbName, tableName, 1);
+    // updateTableRecordCount(dbName, tableName, 1);
 
     // 更新表的最后修改时间
-    updateTableLastModifiedDate(dbName, tableName);
+    // updateTableLastModifiedDate(dbName, tableName);
 
-     std::cout << "数据插入成功，路径：" << dataFilePath << std::endl;
+    // 记录插入操作的日志
+    Logger logger("../../res/system_logs.txt");
+    logger.log(Session::getCurrentUserId(), "INSERT", "DATA", "Inserted values into " + tableName + " in " + dbName); // 记录日志
+
+    std::cout << "数据插入成功，路径：" << dataFilePath << std::endl;
     return true;
 }
 
-
-bool datamanager::validateInsertData(const tableManage::TableInfo& tableInfo,const std::vector<fieldManage::FieldInfo>& columnsInfo, const std::vector<std::string>& values){
-
-    //检查值的数量是否与列数一致
-    if(values.size()!=columnsInfo.size()){
+bool datamanager::validateInsertData(const tableManage::TableInfo& tableInfo, const std::vector<fieldManage::FieldInfo>& columnsInfo, const std::vector<std::string>& values) {
+    // 检查值的数量是否与列数一致
+    if (values.size() != columnsInfo.size()) {
         std::cerr << "Validation Error: Number of values (" << values.size()
         << ") does not match the number of columns (" << columnsInfo.size()
         << ") in table '" << tableInfo.table_name << "'." << std::endl;
         return false;
-
     }
+
     // 逐个值进行检查（NOT NULL 和数据类型）
     for (size_t i = 0; i < values.size(); ++i) {
         const fieldManage::FieldInfo& column = columnsInfo[i];
         const std::string& value = values[i];
 
         // 检查 NOT NULL 约束
-        bool isNotNull = (column.constraints.find("NOT NULL")!=std::string::npos);
+        bool isNotNull = (column.constraints.find("NOT NULL") != std::string::npos);
         if (isNotNull && value.empty()) {
             std::cerr << "Validation Error: Column '" << column.fieldName
                       << "' (index " << i << ") cannot be NULL (empty string)." << std::endl;
@@ -561,7 +613,7 @@ bool datamanager::validateInsertData(const tableManage::TableInfo& tableInfo,con
             else if (columnTypeUpper == "VARCHAR" || columnTypeUpper == "TEXT") {
                 // 基本验证已通过（非空且不是 NOT NULL）
             }
-            //添加更多数据类型的检查，例如 DATE, TIME 等...
+            // 添加更多数据类型的检查，例如 DATE, TIME 等...
             else {
                 // 如果遇到未知的数据类型，可以视为错误或跳过验证（取决于你的需求）
                 std::cerr << "Validation Warning: Unknown data type '" << column.fieldType
@@ -574,11 +626,8 @@ bool datamanager::validateInsertData(const tableManage::TableInfo& tableInfo,con
 
     // 如果所有检查都通过，则数据有效
     return true;
-
-
-
-
 }
+
 
 
 
@@ -609,6 +658,7 @@ bool datamanager::deleteData(const std::string& dbName,const std::string& tableN
             return false;
         }
     }
+
 
 
     // 获取表结构
@@ -817,6 +867,7 @@ std::vector<std::vector<std::string>> datamanager::selecData(
 
 
 
+
     //1. 验证表是否存在
         tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
         if (tableInfo.table_name.empty()) {
@@ -862,6 +913,7 @@ std::vector<std::vector<std::string>> datamanager::selecData(
                 }
                 selectIndices.push_back(idx);
             }
+//<<<<<<< HEAD
         }
 
         // 读取数据文件
@@ -1052,6 +1104,7 @@ std::vector<std::vector<std::string>> datamanager::selecData(
 
         dataFile.close();
 
+
         // 计算全局聚合结果
         std::vector<std::string> resultRow;
         for (const auto& [funcName, param] : parsedAggregateFunctions) {
@@ -1119,6 +1172,11 @@ std::vector<std::vector<std::string>> datamanager::selecData(
     }
 
     std::cout << "Successfully selected " << results.size() << " rows from table '" << tableName << "'." << std::endl;
+
+
+    // 记录查询操作的日志
+    Logger logger("../../res/system_logs.txt");
+    logger.log(Session::getCurrentUserId(), "SELECT", "DATA", "Selected data from " + tableName + " in " + dbName); // 记录日志
     return results;
 }
 
@@ -1137,6 +1195,64 @@ std::vector<std::vector<std::string>> datamanager::selecData(
 
 
 
+// =======
+//             selectColumnIndices.push_back(index);
+//         }
+//     }
+
+//     // 4. WHERE 子句的解析工作已由调用方完成，whereTree 参数直接传入。
+//     //    如果 whereTree 是 nullptr，evaluateWhereClauseTree 会处理为不筛选。
+
+//     // 5. 打开数据文件进行读取
+//     std::string dataFilePath = "../../res/" + tableName + ".data.txt"; // 构建数据文件路径
+//     std::ifstream dataFile(dataFilePath);
+//     if (!dataFile.is_open()) {
+//         // 如果数据文件不存在，说明表是空的。对于 SELECT 来说这不是错误。
+//         // std::cout << "Info: Data file '" << dataFilePath << "' not found. Table is empty." << std::endl; // 可选的信息提示
+//         return results; // 返回空结果集
+//     }
+
+//     // 6. 逐行读取数据文件，应用 WHERE 子句筛选，并提取所需列
+//     std::string line;
+//     while (std::getline(dataFile, line)) {
+//         if (line.empty()) continue; // 跳过空行
+
+//         // 分割行数据为各个字段值
+//         std::vector<std::string> rowValues = splitString(line, ',');
+
+//         // 验证行数据的字段数量是否与表结构一致
+//         if (rowValues.size() != columnsInfo.size()) {
+//             std::cerr << "Warning: Invalid data row in table '" << tableName
+//                       << "': Expected " << columnsInfo.size()
+//                       << " fields, but found " << rowValues.size() << " fields. Skipping this row." << std::endl;
+//             continue; // 跳过格式错误的行
+//         }
+
+//         // 应用 WHERE 子句筛选
+//         bool rowMatches = evaluateWhereClauseTree(whereTree, rowValues, columnsInfo);
+//         if (!rowMatches) continue; // 如果不满足 WHERE 条件，则跳过该行
+
+//         // 提取所需列的值
+//         std::vector<std::string> selectedValues;
+//         for (int index : selectColumnIndices) {
+//             selectedValues.push_back(rowValues[index]);
+//         }
+
+//         // 将筛选后的行添加到结果中
+//         results.push_back(selectedValues);
+//     }
+
+//     // 7. 关闭文件并返回结果
+//     dataFile.close();
+
+//     // 记录查询操作的日志
+//     Logger logger("../../res/system_logs.txt");
+//     logger.log(Session::getCurrentUserId(), "SELECT", "DATA", "Selected data from " + tableName + " in " + dbName); // 记录日志
+
+//     return results;
+// }
+
+// >>>>>>> 9e3794f9e4ed8e4a413a17e5976ebb9162f7bbed
 // 执行 UPDATE 操作
 bool datamanager::updateData( const std::string& dbName,
                              const std::string& tableName,
@@ -1217,4 +1333,233 @@ bool datamanager::updateData( const std::string& dbName,
     updateTableLastModifiedDate(dbName, tableName);
     return true;
 
+}
+
+
+
+
+// 实现事务回滚功能
+bool datamanager::rollbackTransaction() {
+    // 读取 undo 文件
+    QFile undoFile("undo.txt");
+    if (!undoFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        std::cerr << "Failed to open undo file.\n";
+        return false;
+    }
+
+    QTextStream in(&undoFile);
+    QStringList commands;
+    while (!in.atEnd()) {
+        commands.append(in.readLine());
+    }
+    undoFile.close();
+
+    // 清空 undo 文件
+    if (!undoFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        std::cerr << "Failed to truncate undo file.\n";
+        return false;
+    }
+    undoFile.close();
+
+    // 反转命令顺序
+    //commands = commands.reversed();
+    // 使用 std::reverse 反转命令顺序
+    std::reverse(commands.begin(), commands.end());
+
+
+    // 执行回滚操作
+    for (const QString& command : commands) {
+        // 解析命令并执行回滚操作
+        std::string cmdStr = command.toStdString();
+        if (cmdStr.find("INSERT INTO") == 0) {
+            // 处理插入命令的回滚
+            // 提取表名和值
+            size_t intoPos = cmdStr.find("INTO") + 4;
+            size_t valuesPos = cmdStr.find("VALUES");
+            std::string tableName = cmdStr.substr(intoPos, valuesPos - intoPos - 1);
+            tableName.erase(0, tableName.find_first_not_of(" \t"));
+            tableName.erase(tableName.find_last_not_of(" \t") + 1);
+
+            // 提取主键值（假设第一个字段是主键）
+            size_t openBracket = cmdStr.find("(");
+            size_t closeBracket = cmdStr.find(")");
+            std::string valuesStr = cmdStr.substr(openBracket + 1, closeBracket - openBracket - 1);
+            std::vector<std::string> values = splitString(valuesStr, ',');
+            if (!values.empty()) {
+                std::string primaryKeyValue = values[0];
+                // 移除首尾的引号
+                if (!primaryKeyValue.empty() && primaryKeyValue.front() == '\'') {
+                    primaryKeyValue = primaryKeyValue.substr(1);
+                }
+                if (!primaryKeyValue.empty() && primaryKeyValue.back() == '\'') {
+                    primaryKeyValue.pop_back();
+                }
+                deleteData("", tableName, primaryKeyValue);
+            }
+        } else if (cmdStr.find("UPDATE") == 0) {
+            // 处理更新命令的回滚
+            // 这里简化处理，实际应用中需要记录更新前的值
+            std::cerr << "Rollback for UPDATE commands is not fully implemented.\n";
+        } else if (cmdStr.find("DELETE") == 0) {
+            // 处理删除命令的回滚
+            // 这里简化处理，实际应用中需要记录删除前的值
+            std::cerr << "Rollback for DELETE commands is not fully implemented.\n";
+        }
+    }
+
+    return true;
+}
+
+// 提交事务（清空 undo 文件）
+bool datamanager::commitTransaction() {
+    QFile undoFile("undo.txt");
+    if (!undoFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        std::cerr << "Failed to truncate undo file.\n";
+        return false;
+    }
+    undoFile.close();
+    return true;
+}
+
+// 获取当前日期时间，格式为 YYYYMMDD_HHMMSS
+std::string datamanager::getCurrentDateTime() {
+    auto now = std::chrono::system_clock::now();
+    auto in_time_t = std::chrono::system_clock::to_time_t(now);
+
+    std::tm tm = *std::localtime(&in_time_t);
+    char buffer[20];
+    std::strftime(buffer, sizeof(buffer), "%Y%m%d_%H%M%S", &tm);
+
+    return std::string(buffer);
+}
+
+
+// 实现备份功能
+bool datamanager::backupDatabase(const std::string& dbName) {
+    // 备份数据库中的所有表
+    std::vector<tableManage::TableInfo> tables = tableMgr.getTablesInDatabase(dbName); // 获取表列表
+    if (tables.empty()) {
+        std::cerr << "No tables to backup in database " << dbName << std::endl;
+        return false;
+    }
+
+    // 创建备份目录（如果不存在）
+    std::string backupDir = "../../res/backup/" + dbName + "_" + getCurrentDateTime();
+    if (!std::filesystem::exists(backupDir)) {
+        if (!std::filesystem::create_directories(backupDir)) {
+            std::cerr << "Failed to create backup directory: " << backupDir << std::endl;
+            return false;
+        }
+    }
+
+    // 备份每个表的数据文件和表结构文件
+    for (const auto& table : tables) {
+        std::string tableName = table.table_name;
+
+        // 备份数据文件
+        std::string dataFilePath = buildFilePath(dbName, tableName);
+        std::string backupDataFilePath = backupDir + "/" + tableName + ".data.txt";
+
+        if (std::filesystem::exists(dataFilePath)) {
+            try {
+                std::filesystem::copy_file(dataFilePath, backupDataFilePath, std::filesystem::copy_options::overwrite_existing);
+            } catch (const std::filesystem::filesystem_error& e) {
+                std::cerr << "Failed to backup data file " << dataFilePath << ": " << e.what() << std::endl;
+                return false;
+            }
+        } else {
+            std::cout << "Data file " << dataFilePath << " does not exist, skipping." << std::endl;
+        }
+
+        // 备份表结构文件
+        std::string tableDescFile = "../../res/" + dbName + ".tb.txt";
+        std::string backupTableDescFile = backupDir + "/" + dbName + ".tb.txt";
+
+        if (std::filesystem::exists(tableDescFile)) {
+            try {
+                std::filesystem::copy_file(tableDescFile, backupTableDescFile, std::filesystem::copy_options::overwrite_existing);
+            } catch (const std::filesystem::filesystem_error& e) {
+                std::cerr << "Failed to backup table description file " << tableDescFile << ": " << e.what() << std::endl;
+                return false;
+            }
+        } else {
+            std::cout << "Table description file " << tableDescFile << " does not exist, skipping." << std::endl;
+        }
+    }
+
+    std::cout << "Database " << dbName << " backed up successfully to " << backupDir << std::endl;
+    return true;
+}
+
+
+// 实现恢复功能
+bool datamanager::restoreDatabase(const std::string& dbName, const std::string& backupPath) {
+    // 检查备份路径是否存在
+    if (!std::filesystem::exists(backupPath)) {
+        std::cerr << "Backup path does not exist: " << backupPath << std::endl;
+        return false;
+    }
+
+    // 获取备份中的所有表文件
+    std::vector<std::string> tableFiles;
+    for (const auto& entry : std::filesystem::directory_iterator(backupPath)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".data.txt") {
+            tableFiles.push_back(entry.path().filename().string());
+        }
+    }
+
+    if (tableFiles.empty()) {
+        std::cerr << "No table data files found in backup: " << backupPath << std::endl;
+        return false;
+    }
+
+    // 恢复每个表的数据文件
+    for (const auto& tableFile : tableFiles) {
+        std::string tableName = tableFile.substr(0, tableFile.find(".data.txt"));
+
+        // 构建源文件路径和目标文件路径
+        std::string sourceFilePath = backupPath + "/" + tableFile;
+        std::string targetFilePath = buildFilePath(dbName, tableName);
+
+        // 检查目标表是否存在
+        tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
+        if (tableInfo.table_name.empty()) {
+            std::cerr << "Table " << tableName << " does not exist in database " << dbName << std::endl;
+            continue; // 跳过不存在的表
+        }
+
+        // 恢复数据文件
+        try {
+            std::filesystem::copy_file(sourceFilePath, targetFilePath, std::filesystem::copy_options::overwrite_existing);
+            std::cout << "Restored table " << tableName << " from " << sourceFilePath << std::endl;
+        } catch (const std::filesystem::filesystem_error& e) {
+            std::cerr << "Failed to restore table " << tableName << ": " << e.what() << std::endl;
+            return false;
+        }
+    }
+
+    // 恢复表结构文件
+    std::string sourceTableDescFile = backupPath + "/" + dbName + ".tb.txt";
+    std::string targetTableDescFile = "../../res/" + dbName + ".tb.txt";
+
+    if (std::filesystem::exists(sourceTableDescFile)) {
+        try {
+            std::filesystem::copy_file(sourceTableDescFile, targetTableDescFile, std::filesystem::copy_options::overwrite_existing);
+            std::cout << "Restored table description file from " << sourceTableDescFile << std::endl;
+        } catch (const std::filesystem::filesystem_error& e) {
+            std::cerr << "Failed to restore table description file: " << e.what() << std::endl;
+            return false;
+        }
+    } else {
+        std::cout << "Table description file not found in backup, skipping." << std::endl;
+    }
+
+    std::cout << "Database " << dbName << " restored successfully from " << backupPath << std::endl;
+    return true;
+}
+
+// 析构函数
+datamanager::~datamanager() {
+    // 确保事务已提交
+    commitTransaction();
 }

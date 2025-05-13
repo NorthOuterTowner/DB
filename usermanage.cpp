@@ -1,4 +1,5 @@
 #include "usermanage.h"
+#include "logger.h"
 #include "utils.h"
 #include <iostream>
 #include <fstream>

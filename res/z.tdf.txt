@@ -1,2 +1,0 @@
-z zxy score 0 INT 1 2025-04-16-19:57:48
-z zxy name 0 VARCHAR 6 2025-04-17-20:29:32

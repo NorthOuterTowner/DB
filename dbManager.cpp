@@ -1,15 +1,17 @@
 #include "dbManager.h"
+#include "session.h"
+#include "logger.h"
+#include "affair.h"
 #include <algorithm>
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
 #include <QTextEdit>
 
-dbManager::dbManager() : db_list(nullptr) {
-
-
+dbManager::dbManager() : db_list(nullptr), affair("undo.txt", nullptr) { // 如果不使用lexer，传递nullptr
     loadDatabases(); // 初始化时加载现有数据库
 }
+
 
 // 设置 QTreeWidget 指针
 void dbManager::setTreeWidget(QTreeWidget* treeWidget) {
@@ -74,6 +76,11 @@ void dbManager::saveDatabases() {
 }
 
 bool dbManager::createDatabase(const std::string& name) {
+    // 记录事务操作
+    QString sql = QString("CREATE DATABASE %1;").arg(QString::fromStdString(name));
+    affair.writeToUndo(sql);
+
+
     // 检查数据库是否已经存在
     auto it = std::find_if(databases.begin(), databases.end(), [&](const DatabaseInfo& db) {
         return db.database_name == name;
@@ -83,6 +90,10 @@ bool dbManager::createDatabase(const std::string& name) {
         qWarning() << "Database" << QString::fromStdString(name) << "already exists.";
         return false;
     }
+
+    // 创建 Logger 实例并记录日志
+    Logger logger("../../res/system_logs.txt"); // 指定日志文件路径
+    logger.log(Session::getCurrentUserId(), "CREATE", "DATABASE", name); // 记录日志
 
     DatabaseInfo newDB;
     newDB.database_id = databases.size() + 1; // 自增长的ID
@@ -129,6 +140,15 @@ bool dbManager::createDatabase(const std::string& name) {
 }
 
 bool dbManager::dropDatabase(const std::string& name) {
+
+    // 记录事务操作
+    QString sql = QString("DROP DATABASE %1;").arg(QString::fromStdString(name));
+    affair.writeToUndo(sql);
+
+    // 创建 Logger 实例并记录日志
+    Logger logger("../../res/system_logs.txt"); // 指定日志文件路径
+    logger.log(Session::getCurrentUserId(), "DROP", "DATABASE", name); // 记录日志
+
     auto it = std::remove_if(databases.begin(), databases.end(), [&](const DatabaseInfo& db) {
         return db.database_name == name;
     });
@@ -186,6 +206,11 @@ void dbManager::setCurrentDatabase(const std::string& dbName) {
 }
 
 void dbManager::addTableToDatabase(const std::string& dbName, const std::string& tableName) {
+    // 记录事务操作
+    QString sql = QString("ADD TABLE %1.%2;").arg(QString::fromStdString(dbName)).arg(QString::fromStdString(tableName));
+    affair.writeToUndo(sql);
+
+
     databaseTables[dbName].push_back(tableName);
     if (db_list) {
         for (int i = 0; i < db_list->topLevelItemCount(); ++i) {
@@ -200,6 +225,10 @@ void dbManager::addTableToDatabase(const std::string& dbName, const std::string&
 }
 
 void dbManager::dropTableFromDatabase(const std::string& dbName, const std::string& tableName) {
+    // 记录事务操作
+    QString sql = QString("DROP TABLE %1.%2;").arg(QString::fromStdString(dbName)).arg(QString::fromStdString(tableName));
+    affair.writeToUndo(sql);
+
     auto it = databaseTables.find(dbName);
     if (it != databaseTables.end()) {
         auto tableIt = std::find(it->second.begin(), it->second.end(), tableName);
@@ -276,6 +305,38 @@ std::vector<std::string> dbManager::split(const std::string& s, const std::strin
     }
     tokens.push_back(s.substr(start));
     return tokens;
+}
+
+// 在 dbManager 类中添加备份数据库元信息的函数
+void dbManager::backupDatabaseMetadata() {
+    // 备份数据库的实现
+    std::string backupDbFilePath = "../../res/backup/databases_backup.txt";
+    QFile dbFile(QString::fromStdString(dbFilePath));
+    QFile backupFile(QString::fromStdString(backupDbFilePath));
+
+    if (dbFile.open(QIODevice::ReadOnly | QIODevice::Text) && backupFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream in(&dbFile);
+        QTextStream out(&backupFile);
+        out << in.readAll();
+        dbFile.close();
+        backupFile.close();
+    }
+
+    // 备份每个数据库的表描述文件
+    for (const auto& db : databases) {
+        std::string tableDescFile = "../../res/" + db.database_name + ".tb.txt";
+        std::string backupTableDescFile = "../../res/backup/" + db.database_name + "_tb_backup.txt";
+        QFile tbFile(QString::fromStdString(tableDescFile));
+        QFile backupTbFile(QString::fromStdString(backupTableDescFile));
+
+        if (tbFile.open(QIODevice::ReadOnly | QIODevice::Text) && backupTbFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream in(&tbFile);
+            QTextStream out(&backupTbFile);
+            out << in.readAll();
+            tbFile.close();
+            backupTbFile.close();
+        }
+    }
 }
 
 std::string dbManager::getCurrentDatabase() const {

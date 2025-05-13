@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <iostream>
+#include "affair.h"
 
 class fieldManage {
 public:
@@ -39,8 +40,13 @@ public:
     //获取表的字段列表
         std::vector<FieldInfo>getFieldsInfo(const std::string& dbName,const std::string& tableName);
 
+    //备份
+    void backupTableDefFile(const std::string& tableName);
+
 private:
     // 定义 FieldInfo 结构体，用于存储字段的详细信息
+
+    Affair affair; // 声明 Affair 类型的成员变量
 
 
 
