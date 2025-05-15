@@ -90,11 +90,9 @@ MainWindow::MainWindow(QWidget *parent)
     ui->toolBar->addAction(new_table);
     ui->toolBar->addAction(alter);
     ui->toolBar->addAction(del_tb);
-    ui->toolBar->addAction(new_SQL);
-    ui->toolBar->addAction(already_SQL);
     ui->toolBar->addAction(start);
-    ui->toolBar->addAction(save);
-    ui->toolBar->addAction(clear);
+
+
     //实现工具栏中的按钮的对应功能
 
 
