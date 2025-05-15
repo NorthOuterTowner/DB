@@ -453,6 +453,7 @@ std::map<std::string, SQLVal> Lexer::parseInsert(const std::string& sql) {
         //     columns.push_back(it->str());
         // }
 
+        //列名解析
         std::vector<std::string> columns;
         if (columnsStr.empty()) {
             columns = getAllColumnsFromTable(dbName,tableName);  // Get all columns if not specified
@@ -532,111 +533,6 @@ std::map<std::string, SQLVal> Lexer::parseUse(const std::string& sql){
 
 
 
-// std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
-//     std::map<std::string,SQLVal>result = {{"type","SELECT"},{"status","false"}};
-
-//     std::string dbName=getCurrentDatabase();
-//     if(dbName.empty()){
-//         throw std::runtime_error("No database selected.");
-//     }
-
-//     std::regex pattern(
-//         //R"(SELECT\s+(\*|[\w\s,]+)\s+FROM\s+(\w+)(?:\s+WHERE\s+([^\n;]+))?(?:\s+ORDER\s+BY\s+([^\n;]+))?)",
-//         R"(SELECT\s+([\w\s,\(\)\*]+)\s+FROM\s+(\w+)(?:\s+WHERE\s+([^;]+))?(?:\s+GROUP\s+BY\s+([^;]+))?(?:\s+ORDER\s+BY\s+([^;]+))?)",
-
-//         std::regex::icase                );
-//     std::smatch match;
-
-//     if (!std::regex_search(sql, match, pattern)) {
-//         return result; // 无法解析
-//     }
-
-//     result["status"] = true;
-
-//     // 1. 解析列名（支持 *）和聚合函数
-//     std::string columnsStr = utils::strip(match[1].str());
-//     std::vector<std::string> columns;
-//     std::vector<std::string> aggregateFunctions;
-//     if (columnsStr == "*") {
-//         columns = {}; // 空数组代表 SELECT *
-//     } else {
-//         std::vector<std::string> rawColumns = split(columnsStr, ",");
-//         // for (auto& col : rawColumns) {
-//         //     col = utils::strip(col);
-//         //     if (!col.empty()) {
-//         //         columns.push_back(col);
-//         //     }
-//         for (auto& col : rawColumns) {
-//             col = utils::strip(col);
-//             if (col.find("(") != std::string::npos) {
-//                 aggregateFunctions.push_back(col);
-//             } else {
-//                 columns.push_back(col);
-//             }
-//         }
-//     }
-//     result["columns"] = columns;
-//     result["aggregates"] = aggregateFunctions;
-
-//     // 2. 解析表名
-//     result["table"] = utils::strip(match[2].str());
-
-//     // 3. 解析 WHERE 子句（使用括号解析器）
-//     if (match[3].matched) {
-//         std::string whereStr = utils::strip(match[3].str());
-//         std::cout << "[DEBUG] Raw WHERE clause: " << whereStr << std::endl;
-//         result["whereTree"] = parsWhereClause(whereStr);
-//     }
-
-//     // 4. 解析 GROUP BY 子句
-//     if (match[4].matched) {
-//         std::vector<std::string> groupByColumns = split(match[4].str(), ",");
-//         result["group_by"] = groupByColumns;
-//     }
-
-
-
-//     // 5. 解析 ORDER BY 子句
-//     if (match[5].matched) {
-//         std::vector<SortRule> sortRules;
-//         //std::string orderByStr = match[4].str();
-//         std::vector<std::string> orderTokens = split(match[5].str(), ",");
-//         for (auto& token : orderTokens) {
-//             token = utils::strip(token);
-//             if (token.empty()) continue;
-
-//             SortRule rule;
-//             size_t spacePos = token.find_last_of(" \t"); // 查找排序关键字
-//             if (spacePos != std::string::npos) {
-//                 std::string col = token.substr(0, spacePos);
-//                 std::string order = token.substr(spacePos + 1);
-//                 rule.column = utils::strip(col);
-//                 rule.isAscending = (order == "ASC" || order.empty());
-//             } else {
-//                 rule.column = token;
-//                 rule.isAscending = true; // 默认升序
-//             }
-//             sortRules.push_back(rule);
-//         }
-//         result["order_by"] = sortRules;
-//     }
-
-//     std::cout << "[DEBUG] Full SQL: " << sql << std::endl;
-//     if (match[3].matched) {
-//         std::cout << "[DEBUG] WHERE match: " << match[3].str() << std::endl;
-//     }
-
-//     return result;
-// }
-
-
-//<<<<<<< HEAD
-
-
-
-
-// Assume SQLVal can hold different types, e.g., using std::variant or specific keys
-// struct SelectStatement { ... }; // Ideal structure as discussed in thought process
 
 std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
     std::map<std::string, SQLVal> result = {{"type", "SELECT"}, {"status", false}};

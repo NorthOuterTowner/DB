@@ -476,28 +476,6 @@ void MainWindow::onTableHeaderClicked(int column)
     }
 }
 
-// void MainWindow::displaySelectResult(const std::vector<std::vector<std::string>>& rows) {
-//     QTableWidget* table = ui->tableWidget_2;
-//     table->clear(); // 清空旧数据
-//     table->setRowCount(0);
-//     table->setColumnCount(0);
-
-//     if (rows.empty()) return; // 没有数据
-
-//     int columnCount = static_cast<int>(rows[0].size());
-//     table->setColumnCount(columnCount);
-
-//     for (int row = 0; row < rows.size(); ++row) {
-//         table->insertRow(row);
-//         for (int col = 0; col < columnCount; ++col) {
-//             QTableWidgetItem* item = new QTableWidgetItem(QString::fromStdString(rows[row][col]));
-//             table->setItem(row, col, item);
-//         }
-//     }
-
-//     table->resizeColumnsToContents(); // 自动调整列宽
-// }
-
 
 
 
