@@ -672,7 +672,9 @@ std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
     std::vector<std::string> aggregateFunctions;
 
     if (selectListStr == "*") {
-        columns = {}; // SELECT * 表示所有列
+        //columns = {}; // SELECT * 表示所有列
+        columns.push_back("*");//标记为特殊值而不是空数组
+        std::cout << "[DEBUG] Detected SELECT * syntax" << std::endl;
     } else {
         std::vector<std::string> tokens = split(selectListStr, ",");
         for (auto& token : tokens) {
@@ -695,9 +697,13 @@ std::map<std::string, SQLVal> Lexer::parseSelect(const std::string& sql) {
     result["aggregates"] = aggregateFunctions;
 
     // 调试输出
-    std::cout << "[DEBUG] Columns: " << columns.size() << " columns" << std::endl;
-    for (const auto& col : columns) {
-        std::cout << "[DEBUG]   Column: " << col << std::endl;
+    if (columns.size() == 1 && columns[0] == "*") {
+        std::cout << "[DEBUG] Columns: 1 column (SELECT *)" << std::endl;
+    } else {
+        std::cout << "[DEBUG] Columns: " << columns.size() << " columns" << std::endl;
+        for (const auto& col : columns) {
+            std::cout << "[DEBUG]   Column: " << col << std::endl;
+        }
     }
 
     std::cout << "[DEBUG] Aggregates: " << aggregateFunctions.size() << " functions" << std::endl;
@@ -1326,6 +1332,8 @@ void Lexer::handleRawSQL(QString rawSql){
 
 
 
+
+
         if (type == "UPDATE") {
             std::string tableName = std::get<std::string>(result["table"]);
             auto setMap = std::get<std::map<std::string, std::string>>(result["set"]);
@@ -1430,11 +1438,23 @@ void Lexer::handleRawSQL(QString rawSql){
                 groupByColumns = std::get<std::vector<std::string>>(result["group_by"]);
             }
 
+
+
+
             // 如果没有普通列但有聚合函数，这是合法的
             if (columns.empty() && aggregateFunctions.empty()) {
                 std::cerr << "[ERROR] Query must specify columns or aggregates!" << std::endl;
                 return;
             }
+
+            // // 这里修改对 columns 为空的判断逻辑
+            // if (columns.empty() && aggregateFunctions.empty()) {
+            //     // 检查是否是 SELECT * 情况（即 columns 里有特殊标识 "ALL_COLUMNS" ）
+            //     if (std::find(columns.begin(), columns.end(), "ALL_COLUMNS") == columns.end()) {
+            //         std::cerr << "[ERROR] Query must specify columns or aggregates!" << std::endl;
+            //         return;
+            //     }
+            // }
 
             std::shared_ptr<Node> whereTree = nullptr;
             if (result.find("whereTree") != result.end() &&

@@ -34,9 +34,9 @@ private:
     Lexer lexer; // 数据库解析器实例    
     void displaySelectResult(const std::vector<std::vector<std::string>>& rows);
 
-private:
-    Ui::MainWindow *ui;
-    Lexer lexer; // 数据库解析器实例
+//private:
+ //   Ui::MainWindow *ui;
+  //  Lexer lexer; // 数据库解析器实例
     dbManager* dbMgr;
     datamanager* dataMgr;//数据管理
 };

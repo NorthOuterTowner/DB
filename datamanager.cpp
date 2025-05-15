@@ -841,6 +841,394 @@ std::vector<std::string> datamanager::calculateGlobalAggregates(
 }
 
 // 执行 SELECT 查询
+// std::vector<std::vector<std::string>> datamanager::selecData(
+//     const std::string& dbName,
+//     const std::string& tableName,
+//     const std::vector<std::string>& columnsToSelect,
+//     const std::shared_ptr<Node>& whereTree,
+//     const std::vector<std::string>& aggregateFunctions,
+//     const std::vector<std::string>& groupByColumns
+//     ) {
+//     std::vector<std::vector<std::string>> results;
+
+//     // 检查输入参数
+//     std::cout << "[DEBUG] Executor - Input parameters:" << std::endl;
+//     std::cout << "[DEBUG]   dbName: " << dbName << std::endl;
+//     std::cout << "[DEBUG]   tableName: " << tableName << std::endl;
+//     std::cout << "[DEBUG]   columnsToSelect: ";
+//     for (const auto& col : columnsToSelect) std::cout << col << " ";
+//     std::cout << std::endl;
+//     std::cout << "[DEBUG]   aggregateFunctions: ";
+//     for (const auto& func : aggregateFunctions) std::cout << func << " ";
+//     std::cout << std::endl;
+//     std::cout << "[DEBUG]   groupByColumns: ";
+//     for (const auto& col : groupByColumns) std::cout << col << " ";
+//     std::cout << std::endl;
+
+
+
+
+//     //1. 验证表是否存在
+//         tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
+//         if (tableInfo.table_name.empty()) {
+//             std::cerr << "Error selecting data: Table '" << tableName << "' does not exist in database '" << dbName << "'." << std::endl;
+//             return results; // 表不存在，返回空结果
+//         }
+
+//         // 2. 获取表的列信息
+//         std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(dbName,tableName);
+//         if (columnsInfo.empty()) {
+//             std::cerr << "Error selecting data: Could not retrieve column information for table '" << tableName << "'." << std::endl;
+//             // 即使是空表也应该有列信息，这是一个错误
+//             return results; // 获取列信息失败，返回空结果
+//         }
+
+//         // // 3. 确定要选择的列以及它们在数据行中的索引
+//         // std::vector<int> selectColumnIndices; // 存储要选择的列的索引
+//         // if (columnsToSelect.empty()) {
+//         //     // 如果未指定列，则选择所有列
+//         //     for (size_t i = 0; i < columnsInfo.size(); ++i) {
+//         //         selectColumnIndices.push_back(static_cast<int>(i));
+//         //     }
+//         // } else {
+//         //     // 如果指定了列，则查找这些列的索引
+//         //     for (const auto& colName : columnsToSelect) {
+//         //         int index = findColumnIndex(columnsInfo, colName);
+//         //         if (index == -1) {
+//         //             std::cerr << "Error selecting data: Unknown column '" << colName << "' specified in SELECT list for table '" << tableName << "'." << std::endl;
+//         //             return results; // SELECT 列表中包含未知列，返回空结果并报错
+//         //         }
+//         //         selectColumnIndices.push_back(index);
+//         //     }
+//         // }
+
+//         std::vector<std::string> actualColumnsToSelect;
+//         if (columnsToSelect.size() == 1 && columnsToSelect[0] == "ALL_COLUMNS") {
+//             // 将 "ALL_COLUMNS" 扩展为实际的列名列表
+//             for (const auto& colInfo : columnsInfo) {
+//                 actualColumnsToSelect.push_back(colInfo.fieldName);
+//             }
+//             std::cout << "[DEBUG] Expanded 'ALL_COLUMNS' to: ";
+//             for (const auto& col : actualColumnsToSelect) std::cout << col << " ";
+//             std::cout << std::endl;
+//         } else {
+//             actualColumnsToSelect = columnsToSelect;
+//         }
+
+
+//         // 确定要选择的列以及它们在数据行中的索引
+//         std::vector<int> selectColumnIndices;
+//         for (const auto& colName : actualColumnsToSelect) {
+//             int index = findColumnIndex(columnsInfo, colName);
+//             if (index == -1) {
+//                 std::cerr << "Error selecting data: Unknown column '" << colName << "' specified in SELECT list for table '" << tableName << "'." << std::endl;
+//                 return results;
+//             }
+//             selectColumnIndices.push_back(index);
+//         }
+
+
+//     // 解析聚合函数
+//     std::vector<std::pair<std::string, std::string>> parsedAggregateFunctions;
+//     for (const auto& func : aggregateFunctions) {
+//         size_t openPos = func.find('(');
+//         size_t closePos = func.find(')');
+//         if (openPos != std::string::npos && closePos != std::string::npos && openPos < closePos) {
+//             std::string funcName = utils::toUpper(utils::strip(func.substr(0, openPos)));
+//             std::string param = utils::strip(func.substr(openPos + 1, closePos - openPos - 1));
+//             parsedAggregateFunctions.emplace_back(funcName, param);
+//         }
+//     }
+
+//     // 无聚合函数的简单查询
+//     if (aggregateFunctions.empty()) {
+//         std::vector<int> selectIndices;
+//         if (columnsToSelect.empty()) {
+//             // 选择所有列
+//             for (size_t i = 0; i < columnsInfo.size(); i++) {
+//                 selectIndices.push_back(i);
+//             }
+//         } else {
+//             // 选择指定列
+//             for (const auto& col : columnsToSelect) {
+//                 int idx = findColumnIndex(columnsInfo, col);
+//                 if (idx == -1) {
+//                     std::cerr << "Error: Unknown column '" << col << "' in table '" << tableName << "'." << std::endl;
+//                     return results;
+//                 }
+//                 selectIndices.push_back(idx);
+//             }
+// //<<<<<<< HEAD
+//         }
+
+//         // 读取数据文件
+//         std::string dataFilePath = "../../res/" + tableName + ".data.txt";
+//         std::ifstream dataFile(dataFilePath);
+//         if (!dataFile.is_open()) {
+//             std::cerr << "Error: Could not open data file for table '" << tableName << "'." << std::endl;
+//             return results;
+//         }
+
+//         std::string line;
+//         int rowCount = 0;
+//         while (std::getline(dataFile, line)) {
+//             rowCount++;
+//             std::vector<std::string> rowValues = splitString(line, ',');
+
+//             // 验证行格式
+//             if (rowValues.size() != columnsInfo.size()) {
+//                 std::cerr << "Warning: Skipping malformed row " << rowCount << " (expected "
+//                           << columnsInfo.size() << " columns, got " << rowValues.size() << ")" << std::endl;
+//                 continue;
+//             }
+
+//             // 应用 WHERE 过滤
+//             if (whereTree && !evaluateWhereClauseTree(whereTree, rowValues, columnsInfo)) {
+//                 continue;
+//             }
+
+//             // 收集结果行
+//             std::vector<std::string> selectedRow;
+//             for (int idx : selectIndices) {
+//                 selectedRow.push_back(rowValues[idx]);
+//             }
+//             results.push_back(selectedRow);
+//         }
+
+//         dataFile.close();
+//         return results;
+//     }
+
+//     // 处理聚合查询
+//     if (!groupByColumns.empty()) {
+//         // 带 GROUP BY 的聚合查询
+//         std::unordered_map<std::string, std::vector<std::vector<std::string>>> groupedRows;
+
+//         // 读取数据文件并分组
+//         std::string dataFilePath = "../../res/" + tableName + ".data.txt";
+//         std::ifstream dataFile(dataFilePath);
+//         if (!dataFile.is_open()) {
+//             std::cerr << "Error: Could not open data file for table '" << tableName << "'." << std::endl;
+//             return results;
+//         }
+
+//         std::string line;
+//         int rowCount = 0;
+//         while (std::getline(dataFile, line)) {
+//             rowCount++;
+//             std::vector<std::string> rowValues = splitString(line, ',');
+
+//             // 验证行格式
+//             if (rowValues.size() != columnsInfo.size()) {
+//                 std::cerr << "Warning: Skipping malformed row " << rowCount << " (expected "
+//                           << columnsInfo.size() << " columns, got " << rowValues.size() << ")" << std::endl;
+//                 continue;
+//             }
+
+//             // 应用 WHERE 过滤
+//             if (whereTree && !evaluateWhereClauseTree(whereTree, rowValues, columnsInfo)) {
+//                 continue;
+//             }
+
+//             // 生成分组键
+//             std::string groupKey;
+//             for (const auto& col : groupByColumns) {
+//                 int idx = findColumnIndex(columnsInfo, col);
+//                 if (idx != -1) {
+//                     groupKey += rowValues[idx] + "\t";
+//                 }
+//             }
+
+//             groupedRows[groupKey].push_back(rowValues);
+//         }
+
+//         dataFile.close();
+
+//         // 计算每个分组的聚合结果
+//         for (const auto& [groupKey, groupRows] : groupedRows) {
+//             std::vector<std::string> resultRow;
+
+//             // 添加分组列的值
+//             std::vector<std::string> groupValues = splitString(groupKey, '\t');
+//             resultRow.insert(resultRow.end(), groupValues.begin(), groupValues.end());
+
+//             // 计算聚合函数
+//             for (const auto& [funcName, param] : parsedAggregateFunctions) {
+//                 if (funcName == "COUNT") {
+//                     if (param == "*") {
+//                         resultRow.push_back(std::to_string(groupRows.size()));
+//                     } else {
+//                         int colIdx = findColumnIndex(columnsInfo, param);
+//                         if (colIdx == -1) {
+//                             resultRow.push_back("0");
+//                             continue;
+//                         }
+//                         int count = 0;
+//                         for (const auto& row : groupRows) {
+//                             if (!row[colIdx].empty()) count++;
+//                         }
+//                         resultRow.push_back(std::to_string(count));
+//                     }
+//                 } else if (funcName == "SUM" || funcName == "AVG" || funcName == "MAX" || funcName == "MIN") {
+//                     int colIdx = findColumnIndex(columnsInfo, param);
+//                     if (colIdx == -1) {
+//                         resultRow.push_back("NULL");
+//                         continue;
+//                     }
+
+//                     std::vector<double> values;
+//                     for (const auto& row : groupRows) {
+//                         if (!row[colIdx].empty()) {
+//                             try {
+//                                 values.push_back(std::stod(row[colIdx]));
+//                             } catch (...) {
+//                                 // 转换失败，忽略该值
+//                             }
+//                         }
+//                     }
+
+//                     if (values.empty()) {
+//                         resultRow.push_back(funcName == "AVG" ? "0" : "NULL");
+//                         continue;
+//                     }
+
+//                     if (funcName == "SUM") {
+//                         double sum = 0.0;
+//                         for (double val : values) sum += val;
+//                         resultRow.push_back(std::to_string(sum));
+//                     } else if (funcName == "AVG") {
+//                         double sum = 0.0;
+//                         for (double val : values) sum += val;
+//                         resultRow.push_back(std::to_string(sum / values.size()));
+//                     } else if (funcName == "MAX") {
+//                         double maxVal = *std::max_element(values.begin(), values.end());
+//                         resultRow.push_back(std::to_string(maxVal));
+//                     } else if (funcName == "MIN") {
+//                         double minVal = *std::min_element(values.begin(), values.end());
+//                         resultRow.push_back(std::to_string(minVal));
+//                     }
+//                 } else {
+//                     resultRow.push_back("NULL");
+//                 }
+//             }
+
+//             results.push_back(resultRow);
+//         }
+//     } else {
+//         // 不带 GROUP BY 的聚合查询
+//         std::vector<std::vector<std::string>> filteredRows;
+
+//         // 读取数据文件并应用 WHERE 过滤
+//         std::string dataFilePath = "../../res/" + tableName + ".data.txt";
+//         std::ifstream dataFile(dataFilePath);
+//         if (!dataFile.is_open()) {
+//             std::cerr << "Error: Could not open data file for table '" << tableName << "'." << std::endl;
+//             return results;
+//         }
+
+//         std::string line;
+//         int rowCount = 0;
+//         while (std::getline(dataFile, line)) {
+//             rowCount++;
+//             std::vector<std::string> rowValues = splitString(line, ',');
+
+//             // 验证行格式
+//             if (rowValues.size() != columnsInfo.size()) {
+//                 std::cerr << "Warning: Skipping malformed row " << rowCount << " (expected "
+//                           << columnsInfo.size() << " columns, got " << rowValues.size() << ")" << std::endl;
+//                 continue;
+//             }
+
+//             // 应用 WHERE 过滤
+//             if (whereTree && !evaluateWhereClauseTree(whereTree, rowValues, columnsInfo)) {
+//                 continue;
+//             }
+
+//             filteredRows.push_back(rowValues);
+//         }
+
+//         dataFile.close();
+
+
+//         // 计算全局聚合结果
+//         std::vector<std::string> resultRow;
+//         for (const auto& [funcName, param] : parsedAggregateFunctions) {
+//             if (funcName == "COUNT") {
+//                 if (param == "*") {
+//                     resultRow.push_back(std::to_string(filteredRows.size()));
+//                 } else {
+//                     int colIdx = findColumnIndex(columnsInfo, param);
+//                     if (colIdx == -1) {
+//                         resultRow.push_back("0");
+//                         continue;
+//                     }
+//                     int count = 0;
+//                     for (const auto& row : filteredRows) {
+//                         if (!row[colIdx].empty()) count++;
+//                     }
+//                     resultRow.push_back(std::to_string(count));
+//                 }
+//             } else if (funcName == "SUM" || funcName == "AVG" || funcName == "MAX" || funcName == "MIN") {
+//                 int colIdx = findColumnIndex(columnsInfo, param);
+//                 if (colIdx == -1) {
+//                     resultRow.push_back("NULL");
+//                     continue;
+//                 }
+
+//                 std::vector<double> values;
+//                 for (const auto& row : filteredRows) {
+//                     if (!row[colIdx].empty()) {
+//                         try {
+//                             values.push_back(std::stod(row[colIdx]));
+//                         } catch (...) {
+//                             // 转换失败，忽略该值
+//                         }
+//                     }
+//                 }
+
+//                 if (values.empty()) {
+//                     resultRow.push_back(funcName == "AVG" ? "0" : "NULL");
+//                     continue;
+//                 }
+
+//                 if (funcName == "SUM") {
+//                     double sum = 0.0;
+//                     for (double val : values) sum += val;
+//                     resultRow.push_back(std::to_string(sum));
+//                 } else if (funcName == "AVG") {
+//                     double sum = 0.0;
+//                     for (double val : values) sum += val;
+//                     resultRow.push_back(std::to_string(sum / values.size()));
+//                 } else if (funcName == "MAX") {
+//                     double maxVal = *std::max_element(values.begin(), values.end());
+//                     resultRow.push_back(std::to_string(maxVal));
+//                 } else if (funcName == "MIN") {
+//                     double minVal = *std::min_element(values.begin(), values.end());
+//                     resultRow.push_back(std::to_string(minVal));
+//                 }
+//             } else {
+//                 resultRow.push_back("NULL");
+//             }
+//         }
+
+//         if (!resultRow.empty()) {
+//             results.push_back(resultRow);
+//         }
+//     }
+
+//     std::cout << "Successfully selected " << results.size() << " rows from table '" << tableName << "'." << std::endl;
+
+
+//     // 记录查询操作的日志
+//     Logger logger("../../res/system_logs.txt");
+//     logger.log(Session::getCurrentUserId(), "SELECT", "DATA", "Selected data from " + tableName + " in " + dbName); // 记录日志
+//     return results;
+// }
+
+
+
+
+
 std::vector<std::vector<std::string>> datamanager::selecData(
     const std::string& dbName,
     const std::string& tableName,
@@ -848,6 +1236,7 @@ std::vector<std::vector<std::string>> datamanager::selecData(
     const std::shared_ptr<Node>& whereTree,
     const std::vector<std::string>& aggregateFunctions,
     const std::vector<std::string>& groupByColumns
+
     ) {
     std::vector<std::vector<std::string>> results;
 
@@ -865,23 +1254,50 @@ std::vector<std::vector<std::string>> datamanager::selecData(
     for (const auto& col : groupByColumns) std::cout << col << " ";
     std::cout << std::endl;
 
+    // 1. 验证表是否存在
+    tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
+    if (tableInfo.table_name.empty()) {
+        std::cerr << "Error selecting data: Table '" << tableName << "' does not exist in database '" << dbName << "'." << std::endl;
+        return results;
+    }
 
+    // 2. 获取表的列信息
+    std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(dbName, tableName);
+    if (columnsInfo.empty()) {
+        std::cerr << "Error selecting data: Could not retrieve column information for table '" << tableName << "'." << std::endl;
+        return results;
+    }
 
+    // 3. 确定要选择的列以及它们在数据行中的索引
 
-    //1. 验证表是否存在
-        tableManage::TableInfo tableInfo = tableMgr.getTableInfo(dbName, tableName);
-        if (tableInfo.table_name.empty()) {
-            std::cerr << "Error selecting data: Table '" << tableName << "' does not exist in database '" << dbName << "'." << std::endl;
-            return results; // 表不存在，返回空结果
+    std::vector<int> selectColumnIndices;
+    bool hasSelectAll = false; // [NEW] 标记是否为 SELECT *
+
+    if (columnsToSelect.empty()) {
+        // 未指定列时默认选择所有列
+        for (size_t i = 0; i < columnsInfo.size(); ++i) {
+            selectColumnIndices.push_back(static_cast<int>(i));
         }
-
-        // 2. 获取表的列信息
-        std::vector<fieldManage::FieldInfo> columnsInfo = fieldMgr.getFieldsInfo(dbName,tableName);
-        if (columnsInfo.empty()) {
-            std::cerr << "Error selecting data: Could not retrieve column information for table '" << tableName << "'." << std::endl;
-            // 即使是空表也应该有列信息，这是一个错误
-            return results; // 获取列信息失败，返回空结果
+    } else {
+        for (const auto& colName : columnsToSelect) {
+            if (colName == "*") { // [NEW] 处理 SELECT *
+                hasSelectAll = true;
+                selectColumnIndices.clear(); // 清空现有列，重新添加所有列索引
+                for (size_t i = 0; i < columnsInfo.size(); ++i) {
+                    selectColumnIndices.push_back(static_cast<int>(i));
+                }
+                break; // 遇到 * 时忽略后续列（符合 SQL 语法）
+            } else {
+                // 检查列是否存在
+                int index = findColumnIndex(columnsInfo, colName);
+                if (index == -1) {
+                    std::cerr << "Error selecting data: Unknown column '" << colName << "' specified in SELECT list for table '" << tableName << "'." << std::endl;
+                    return results;
+                }
+                selectColumnIndices.push_back(index);
+            }
         }
+    }
 
     // 解析聚合函数
     std::vector<std::pair<std::string, std::string>> parsedAggregateFunctions;
@@ -897,30 +1313,10 @@ std::vector<std::vector<std::string>> datamanager::selecData(
 
     // 无聚合函数的简单查询
     if (aggregateFunctions.empty()) {
-        std::vector<int> selectIndices;
-        if (columnsToSelect.empty()) {
-            // 选择所有列
-            for (size_t i = 0; i < columnsInfo.size(); i++) {
-                selectIndices.push_back(i);
-            }
-        } else {
-            // 选择指定列
-            for (const auto& col : columnsToSelect) {
-                int idx = findColumnIndex(columnsInfo, col);
-                if (idx == -1) {
-                    std::cerr << "Error: Unknown column '" << col << "' in table '" << tableName << "'." << std::endl;
-                    return results;
-                }
-                selectIndices.push_back(idx);
-            }
-//<<<<<<< HEAD
-        }
-
-        // 读取数据文件
         std::string dataFilePath = "../../res/" + tableName + ".data.txt";
         std::ifstream dataFile(dataFilePath);
         if (!dataFile.is_open()) {
-            std::cerr << "Error: Could not open data file for table '" << tableName << "'." << std::endl;
+            // 表为空时返回空结果
             return results;
         }
 
@@ -944,7 +1340,7 @@ std::vector<std::vector<std::string>> datamanager::selecData(
 
             // 收集结果行
             std::vector<std::string> selectedRow;
-            for (int idx : selectIndices) {
+            for (int idx : selectColumnIndices) {
                 selectedRow.push_back(rowValues[idx]);
             }
             results.push_back(selectedRow);
@@ -958,8 +1354,6 @@ std::vector<std::vector<std::string>> datamanager::selecData(
     if (!groupByColumns.empty()) {
         // 带 GROUP BY 的聚合查询
         std::unordered_map<std::string, std::vector<std::vector<std::string>>> groupedRows;
-
-        // 读取数据文件并分组
         std::string dataFilePath = "../../res/" + tableName + ".data.txt";
         std::ifstream dataFile(dataFilePath);
         if (!dataFile.is_open()) {
@@ -1010,9 +1404,9 @@ std::vector<std::vector<std::string>> datamanager::selecData(
             // 计算聚合函数
             for (const auto& [funcName, param] : parsedAggregateFunctions) {
                 if (funcName == "COUNT") {
-                    if (param == "*") {
+                    if (param == "*") {//count(*)统计行数
                         resultRow.push_back(std::to_string(groupRows.size()));
-                    } else {
+                    } else {//count(column)统计非空值数量
                         int colIdx = findColumnIndex(columnsInfo, param);
                         if (colIdx == -1) {
                             resultRow.push_back("0");
@@ -1031,6 +1425,7 @@ std::vector<std::vector<std::string>> datamanager::selecData(
                         continue;
                     }
 
+                    //转换为数值类型（处理类型转换失败的情况）
                     std::vector<double> values;
                     for (const auto& row : groupRows) {
                         if (!row[colIdx].empty()) {
@@ -1072,8 +1467,6 @@ std::vector<std::vector<std::string>> datamanager::selecData(
     } else {
         // 不带 GROUP BY 的聚合查询
         std::vector<std::vector<std::string>> filteredRows;
-
-        // 读取数据文件并应用 WHERE 过滤
         std::string dataFilePath = "../../res/" + tableName + ".data.txt";
         std::ifstream dataFile(dataFilePath);
         if (!dataFile.is_open()) {
@@ -1103,7 +1496,6 @@ std::vector<std::vector<std::string>> datamanager::selecData(
         }
 
         dataFile.close();
-
 
         // 计算全局聚合结果
         std::vector<std::string> resultRow;
@@ -1171,20 +1563,17 @@ std::vector<std::vector<std::string>> datamanager::selecData(
         }
     }
 
-    std::cout << "Successfully selected " << results.size() << " rows from table '" << tableName << "'." << std::endl;
 
+
+    // 应用 ORDER BY 排序
+
+    std::cout << "Successfully selected " << results.size() << " rows from table '" << tableName << "'." << std::endl;
 
     // 记录查询操作的日志
     Logger logger("../../res/system_logs.txt");
-    logger.log(Session::getCurrentUserId(), "SELECT", "DATA", "Selected data from " + tableName + " in " + dbName); // 记录日志
+    logger.log(Session::getCurrentUserId(), "SELECT", "DATA", "Selected data from " + tableName + " in " + dbName);
     return results;
 }
-
-
-
-
-
-
 
 
 

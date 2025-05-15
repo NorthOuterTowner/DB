@@ -51,6 +51,7 @@ public:
                                                      const std::vector<std::string>& aggregateFunctions, // 聚合函数列表
                                                      const std::vector<std::string>& groupByColumns // GROUP BY 列名列表
 
+
                                                      );
     bool updateData( const std::string& dbName,
                     const std::string& tableName,
