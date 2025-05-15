@@ -1320,6 +1320,11 @@ std::vector<std::vector<std::string>> datamanager::selecData(
             return results;
         }
 
+        // 直接跳过第一行（表头）
+        std::string headerLine;
+        std::getline(dataFile, headerLine);
+
+
         std::string line;
         int rowCount = 0;
         while (std::getline(dataFile, line)) {
@@ -1360,6 +1365,11 @@ std::vector<std::vector<std::string>> datamanager::selecData(
             std::cerr << "Error: Could not open data file for table '" << tableName << "'." << std::endl;
             return results;
         }
+
+        // 直接跳过第一行（表头）
+        std::string headerLine;
+        std::getline(dataFile, headerLine);
+
 
         std::string line;
         int rowCount = 0;
@@ -1473,6 +1483,10 @@ std::vector<std::vector<std::string>> datamanager::selecData(
             std::cerr << "Error: Could not open data file for table '" << tableName << "'." << std::endl;
             return results;
         }
+
+        // 直接跳过第一行（表头）
+        std::string headerLine;
+        std::getline(dataFile, headerLine);
 
         std::string line;
         int rowCount = 0;

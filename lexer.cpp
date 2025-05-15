@@ -1323,11 +1323,21 @@ void Lexer::handleRawSQL(QString rawSql){
                 std::get<std::vector<std::vector<std::string>>>(result["values"]);
 
             std::string dbName = getCurrentDatabase();  // 从 Lexer 获取当前数据库
-            datamanager dataManager(&dbMgr);                    // 实例化 datamanager（注意命名一致）
+            datamanager dataManager(&dbMgr);                    // 实例化 datamanager
+
+            int rowsAffected = 0; // 定义变量
             for (const auto& values : valuesGroups) {
-                dataManager.insertData(dbName, tableName, values);
+
+                rowsAffected += dataManager.insertData(dbName, tableName, values); // 累加返回值
+
+                //dataManager.insertData(dbName, tableName, values);
                 std::cout << "[DEBUG] dbName: " << dbName << ", tableName: " << tableName << std::endl;
             }
+            std::cout << "[DEBUG] 插入行数: " << rowsAffected << std::endl;
+
+
+            emit sendInsertResult(QString::fromStdString(tableName), rowsAffected);
+
         }
 
 
@@ -1342,7 +1352,11 @@ void Lexer::handleRawSQL(QString rawSql){
 
             std::string dbName = getCurrentDatabase();
             datamanager dataManager(&dbMgr);
-            dataManager.updateData(dbName, tableName, setMap, pkName, pkValue);
+            int rowsAffected=dataManager.updateData(dbName, tableName, setMap, pkName, pkValue);
+            //emit sendOperationResult("DELETE", QString::fromStdString(tableName), rowsAffected);
+
+            emit sendUpdateResult(QString::fromStdString(tableName), rowsAffected);
+
         }
 
 
@@ -1404,7 +1418,10 @@ void Lexer::handleRawSQL(QString rawSql){
             // }
 
             datamanager dataManager(&dbMgr);
-            dataManager.deleteData(dbName, tableName, value);
+            int rowsAffected=dataManager.deleteData(dbName, tableName, value);
+
+            emit sendDeleteResult(QString::fromStdString(tableName), rowsAffected);
+
         }
 
         if (type == "SELECT") {
@@ -1509,7 +1526,7 @@ void Lexer::handleRawSQL(QString rawSql){
                 output += "\n";
             }
 
-            emit sendSelectResult(rows);
+            emit sendSelectResult(rows,QString::fromStdString(tableName));
     }
         if(status){
             Server * server = Server::getInstance();

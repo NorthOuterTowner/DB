@@ -62,7 +62,17 @@ class Lexer : public QObject
 
 signals:
     void tableDefinitionChanged(const QString& tableName);
-    void sendSelectResult(const std::vector<std::vector<std::string>>& rows);
+
+    void sendSelectResult(const std::vector<std::vector<std::string>>& rows,const QString& tableName);
+
+    // INSERT 成功信号
+    void sendInsertResult(const QString& tableName, int rowsAffected);
+
+    // UPDATE 成功信号
+    void sendUpdateResult(const QString& tableName, int rowsAffected);
+
+    // DELETE 成功信号
+    void sendDeleteResult(const QString& tableName, int rowsAffected);
 
 public:
     Lexer(QWidget *parent = nullptr);

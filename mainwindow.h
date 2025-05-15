@@ -28,11 +28,24 @@ private slots:
     void onTableItemClicked(QTreeWidgetItem *item, int column);
     void onTableDefinitionChanged(const QString& tableName);
     void onTableHeaderClicked(int column);
+    // MainWindow.h
+private slots:
+    void onSelectResultReceived(const std::vector<std::vector<std::string>>& rows, const QString& tableName);
+    //void onOperationResultReceived(const QString& type, const QString& tableName, int count);
+    // INSERT 结果处理
+    void onInsertResultReceived(const QString& tableName, int rowsAffected);
+
+    // UPDATE 结果处理
+    void onUpdateResultReceived(const QString& tableName, int rowsAffected);
+
+    // DELETE 结果处理
+    void onDeleteResultReceived(const QString& tableName, int rowsAffected);
 
 private:
     Ui::MainWindow *ui;
-    Lexer lexer; // 数据库解析器实例    
-    void displaySelectResult(const std::vector<std::vector<std::string>>& rows);
+    Lexer lexer; // 数据库解析器实例
+    QStringList readHeaderFromFile(const QString& filePath);
+    void displaySelectResult(const std::vector<std::vector<std::string>>& rows,const QString& tableName );
 
 //private:
  //   Ui::MainWindow *ui;

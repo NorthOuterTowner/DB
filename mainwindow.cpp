@@ -115,7 +115,11 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->tableWidget_2->horizontalHeader(), &QHeaderView::sectionClicked,
             this, &MainWindow::onTableHeaderClicked);
 
-    connect(&lexer, &Lexer::sendSelectResult, this, &MainWindow::displaySelectResult);
+    connect(&lexer, &Lexer::sendSelectResult, this, &MainWindow::onSelectResultReceived);
+    connect(&lexer, &Lexer::sendInsertResult, this, &MainWindow::onInsertResultReceived);
+    connect(&lexer, &Lexer::sendUpdateResult, this, &MainWindow::onUpdateResultReceived);
+    connect(&lexer, &Lexer::sendDeleteResult, this, &MainWindow::onDeleteResultReceived);
+
 
     dbMgr=new dbManager();
     dataMgr=new datamanager(dbMgr);
@@ -147,6 +151,10 @@ void MainWindow::onNewDatabaseTriggered()
     }
 
 
+}
+
+void MainWindow::onSelectResultReceived(const std::vector<std::vector<std::string>>& rows, const QString& tableName) {
+    displaySelectResult(rows, tableName);
 }
 
 void MainWindow::deleteDatabaseTriggered()
@@ -468,25 +476,129 @@ void MainWindow::onTableHeaderClicked(int column)
     }
 }
 
-void MainWindow::displaySelectResult(const std::vector<std::vector<std::string>>& rows) {
+// void MainWindow::displaySelectResult(const std::vector<std::vector<std::string>>& rows) {
+//     QTableWidget* table = ui->tableWidget_2;
+//     table->clear(); // 清空旧数据
+//     table->setRowCount(0);
+//     table->setColumnCount(0);
+
+//     if (rows.empty()) return; // 没有数据
+
+//     int columnCount = static_cast<int>(rows[0].size());
+//     table->setColumnCount(columnCount);
+
+//     for (int row = 0; row < rows.size(); ++row) {
+//         table->insertRow(row);
+//         for (int col = 0; col < columnCount; ++col) {
+//             QTableWidgetItem* item = new QTableWidgetItem(QString::fromStdString(rows[row][col]));
+//             table->setItem(row, col, item);
+//         }
+//     }
+
+//     table->resizeColumnsToContents(); // 自动调整列宽
+// }
+
+
+
+
+QStringList MainWindow::readHeaderFromFile(const QString& filePath) {
+    QStringList headers;
+    QFile file(filePath);
+
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "无法打开文件:" << filePath;
+        return headers;
+    }
+
+    QTextStream in(&file);
+    if (!in.atEnd()) {
+        QString firstLine = in.readLine().trimmed();
+        if (!firstLine.isEmpty()) {
+            headers = firstLine.split(',', Qt::SkipEmptyParts); // 按逗号分割，忽略空字段
+        }
+    }
+    file.close();
+
+    // 验证表头与数据列数是否一致（可选）
+    // if (!headers.isEmpty() && headers.size() != rows[0].size()) {
+    //     qWarning() << "表头与数据列数不一致，使用默认表头";
+    //     headers.clear();
+    // }
+
+    return headers;
+}
+
+void MainWindow::displaySelectResult(
+    const std::vector<std::vector<std::string>>& rows,
+    const QString& tableName  // 传入表名，用于构造数据文件路径
+    ) {
     QTableWidget* table = ui->tableWidget_2;
-    table->clear(); // 清空旧数据
+    table->clear();
     table->setRowCount(0);
     table->setColumnCount(0);
 
-    if (rows.empty()) return; // 没有数据
+    if (rows.empty()) {
+        return;
+    }
 
-    int columnCount = static_cast<int>(rows[0].size());
-    table->setColumnCount(columnCount);
+    // 构造数据文件路径（假设路径固定为 ../../res/表名.data.txt）
+    QString dataFilePath = QString("../../res/%1.data.txt").arg(tableName);
+    QStringList headers = readHeaderFromFile(dataFilePath); // 读取表头
 
-    for (int row = 0; row < rows.size(); ++row) {
-        table->insertRow(row);
-        for (int col = 0; col < columnCount; ++col) {
-            QTableWidgetItem* item = new QTableWidgetItem(QString::fromStdString(rows[row][col]));
-            table->setItem(row, col, item);
+    int columnCount = headers.size();
+    if (columnCount == 0) {
+        // 表头读取失败，使用数据行第一行作为表头（应急方案）
+        columnCount = static_cast<int>(rows[0].size());
+        headers = QStringList();
+        for (int i = 0; i < columnCount; ++i) {
+            headers.append(QString("Column %1").arg(i + 1));
         }
     }
 
-    table->resizeColumnsToContents(); // 自动调整列宽
+    // 设置表头
+    table->setColumnCount(columnCount);
+    table->setHorizontalHeaderLabels(headers);
+
+    // 填充数据行
+    for (int row = 0; row < rows.size(); ++row) {
+        table->insertRow(row);
+        for (int col = 0; col < columnCount; ++col) {
+            if (col < rows[row].size()) {
+                QString value = QString::fromStdString(rows[row][col]);
+                QTableWidgetItem* item = new QTableWidgetItem(value);
+                table->setItem(row, col, item);
+            }
+        }
+    }
+
+    table->resizeColumnsToContents();
 }
 
+// MainWindow.cpp
+void MainWindow::onInsertResultReceived(const QString& tableName, int rowsAffected) {
+    qDebug() << "[DEBUG] 收到插入结果信号:" << tableName << rowsAffected;
+    QMessageBox::information(this, "插入成功",
+                             QString("成功插入 %1 行到表 '%2'").arg(rowsAffected).arg(tableName));
+
+    // 重新执行 SELECT * 查询并显示结果
+    QString selectSql = QString("SELECT * FROM %1").arg(tableName);
+    lexer.handleRawSQL(selectSql);
+}
+
+void MainWindow::onUpdateResultReceived(const QString& tableName, int rowsAffected) {
+    QMessageBox::information(this, "更新成功",
+                             QString("成功更新 %1 行到表 '%2'").arg(rowsAffected).arg(tableName));
+
+    // 重新查询并显示
+    QString selectSql = QString("SELECT * FROM %1").arg(tableName);
+    lexer.handleRawSQL(selectSql);
+}
+
+void MainWindow::onDeleteResultReceived(const QString& tableName, int rowsAffected) {
+    QMessageBox::information(this, "删除成功",
+                             QString("成功删除 %1 行从表 '%2'").arg(rowsAffected).arg(tableName));
+
+    // 重新查询并显示
+    QString selectSql = QString("SELECT * FROM %1").arg(tableName);
+    lexer.handleRawSQL(selectSql);
+}
